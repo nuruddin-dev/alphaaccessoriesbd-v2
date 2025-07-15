@@ -1,0 +1,178 @@
+.offer-container {
+  position: relative; /* Ensure positioning for child elements */
+  width: 100vw; /* 100% of the viewport width */
+  left: 50%; /* Move it out of the container's width */
+  transform: translateX(-50%); /* Center it horizontally */
+}
+
+.slider-image {
+  width: 100%; /* Stretch to full width */
+  height: 90vh; /* Stretch to full height */
+  object-fit: cover; /* Ensure proper image scaling */
+}
+
+.gradient-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 20%;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0),
+    rgba(255, 255, 255, 0.7)
+  );
+}
+.slider-image-mobile {
+  width: 100%; /* Stretch to full width */
+  height: 30vh; /* Stretch to full height */
+  object-fit: cover; /* Ensure proper image scaling */
+}
+
+.custom-arrow {
+  position: absolute;
+  top: 25%;
+  transform: translateY(-50%);
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.1); /* Default transparency */
+  width: 40px;
+  height: 80px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 10px; /* Rectangular shape with rounded corners */
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.custom-arrow-product {
+  top: 50% !important;
+}
+
+.custom-arrow:hover {
+  background: rgba(0, 0, 0, 0.8); /* Darker background on hover */
+  color: white;
+}
+
+.custom-arrow::before {
+  content: '';
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-style: solid;
+}
+
+/* Adjust for previous arrow */
+.prev-arrow {
+  left: 2%;
+}
+.prev-arrow-product {
+  left: -3%;
+}
+
+.prev-arrow::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 4px;
+  background-color: rgba(0, 0, 0, 0.1);
+  position: absolute;
+  right: 8px; /* Adjust position if needed */
+  border-width: 3px;
+}
+
+/* Adjust for next arrow */
+.next-arrow {
+  right: 2%;
+}
+.next-arrow-product {
+  right: -3%;
+}
+
+.next-arrow::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 4px;
+  background-color: rgba(0, 0, 0, 0.1);
+  position: absolute;
+  left: 8px;
+  border-width: 3px;
+}
+
+/* Existing styles (if any) */
+
+.top-category-container {
+  background-color: transparent;
+  border-radius: 10px;
+  left: 0;
+  width: 100%;
+  height: auto;
+
+  @media (min-width: 768px) {
+    position: absolute;
+    bottom: 0;
+    padding: 20px;
+  }
+}
+
+.top-category-list {
+  display: flex; /* Arrange categories in a row */
+  flex-wrap: wrap; /* Wrap to the next line if needed */
+  list-style-type: none; /* Remove default list style */
+  margin: 0; /* Remove default margin */
+  padding: 0; /* Remove default padding */
+  justify-content: space-evenly;
+  align-items: center;
+}
+
+.top-category-item {
+  width: calc(
+    12% - 20px
+  ); /* Adjust the width for each item considering margins */
+  margin: 10px; /* Spacing between categories */
+  text-align: center; /* Center content within each category */
+  cursor: pointer;
+  pointer-events: auto;
+
+  /* If using <li>, the display is by default block-level, so you don’t need any specific display property */
+  list-style: none; /* Remove the default list style if it is there */
+
+  @media (max-width: 768px) {
+    padding: 10px 10px 0px 10px;
+  }
+}
+
+.top-category-inner {
+  background-color: rgba(255, 255, 255, 0.2); /* Semi-transparent white */
+  backdrop-filter: blur(10px); /* Apply blur effect */
+  border-radius: 5px; /* Rounded corners */
+  box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.image-container {
+  padding: 10px; /* Padding within each category */
+  background-color: transparent;
+  height: auto;
+  width: 70%;
+  border-radius: 5px; /* Rounded corners for image */
+  overflow: hidden; /* Clip image if it overflows */
+  margin: 0 auto; /* Center image horizontally */
+
+  @media (min-width: 768px) {
+    width: auto;
+    height: auto;
+  }
+}
+
+.category-name {
+  padding: 5px 0px; /* Padding within each category */
+  font-size: 1rem; /* Font size for category name */
+  font-weight: bold; /* Bold font for category name */
+  margin-top: 5px; /* Spacing between image and text */
+  border-radius: 5px;
+
+  @media (max-width: 768px) {
+    font-size: 0.7rem;
+  }
+}

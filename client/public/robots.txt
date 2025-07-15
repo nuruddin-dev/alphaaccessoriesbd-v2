@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://alphaaccessoriesbd.com/api/sitemap.xml
+
+Disallow: /admin/
+Disallow: /temp/
+Disallow: /private/
+Disallow: /search/
+Disallow: /cart/
+Disallow: /checkout/

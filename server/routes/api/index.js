@@ -1,0 +1,76 @@
+const router = require('express').Router();
+
+const authRoutes = require('./auth');
+const userRoutes = require('./user');
+const customerRoutes = require('./customer');
+const invoiceRoutes = require('./invoice');
+const addressRoutes = require('./address');
+const newsletterRoutes = require('./newsletter');
+const productRoutes = require('./product');
+const categoryRoutes = require('./category');
+const brandRoutes = require('./brand');
+const tagRoutes = require('./tag');
+const contactRoutes = require('./contact');
+const merchantRoutes = require('./merchant');
+const cartRoutes = require('./cart');
+const orderRoutes = require('./order');
+const orderNowRoutes = require('./orderNow');
+const reviewRoutes = require('./review');
+const wishlistRoutes = require('./wishlist');
+const sitemapRoutes = require('./sitemap'); // Import the sitemap route
+
+// auth routes
+router.use('/auth', authRoutes);
+
+// user routes
+router.use('/user', userRoutes);
+
+// customer routes
+router.use('/customer', customerRoutes);
+
+// invoice routes
+router.use('/invoice', invoiceRoutes);
+
+// address routes
+router.use('/address', addressRoutes);
+
+// newsletter routes
+router.use('/newsletter', newsletterRoutes);
+
+// product routes
+router.use('/product', productRoutes);
+
+// category routes
+router.use('/category', categoryRoutes);
+
+// brand routes
+router.use('/brand', brandRoutes);
+
+// tag routes
+router.use('/tag', tagRoutes);
+
+// contact routes
+router.use('/contact', contactRoutes);
+
+// merchant routes
+router.use('/merchant', merchantRoutes);
+
+// cart routes
+router.use('/cart', cartRoutes);
+
+// order routes
+router.use('/order', orderRoutes);
+
+// orderNow routes
+router.use('/orderNow', orderNowRoutes);
+
+// Review routes
+router.use('/review', reviewRoutes);
+
+// Wishlist routes
+router.use('/wishlist', wishlistRoutes);
+
+// Sitemap route
+router.use('/', sitemapRoutes);
+
+module.exports = router;

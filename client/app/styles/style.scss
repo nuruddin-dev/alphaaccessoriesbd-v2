@@ -1,0 +1,52 @@
+/* MERN Theme */
+
+// Import utilities
+@import 'core/utils/fonts';
+@import 'core/utils/reset';
+
+// Import Bootstrap source files
+@import 'node_modules/bootstrap/scss/bootstrap';
+
+// Import core styles
+@import 'core/core';
+
+// Import custom styles
+@import 'custom';
+@import './core/_customer';
+
+@media (min-width: 576px) {
+  .container-xl,
+  .container-lg,
+  .container-md,
+  .container-sm,
+  .container {
+    max-width: 95%;
+    // max-width: 50%;
+    padding: 0 !important; // Remove padding
+  }
+
+  .row {
+    padding: 0;
+    margin: 0;
+  }
+}
+
+/* Style for ordered lists (numbered) */
+.ql-editor ol {
+  padding-left: 20px; /* Add padding to the left */
+  list-style-position: outside; /* Ensure the numbers appear outside the text */
+}
+
+/* Style for unordered lists (bulleted) */
+.ql-editor ul {
+  padding-left: 20px; /* Add padding to the left */
+  list-style-position: outside; /* Ensure the bullet appears outside the text */
+}
+
+.ql-editor li {
+  margin-bottom: 5px; /* Optional: Adds space between list items */
+}
+
+label {
+  font-weight: bold;
+}
