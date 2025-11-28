@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
-import { useTable } from 'react-table';
+import { Link } from 'react-router-dom';
+import { useTable, useSortBy } from 'react-table';
 import { formatDate } from '../../../utils/date';
 import axios from 'axios';
 import { API_URL } from '../../../constants';
 
-const CustomerTable = ({ customers, onEdit }) => {
+const CustomerTable = ({ customers, history }) => {
   const [invoiceDetails, setInvoiceDetails] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
   // Ensure customers is always an array
-  const safeCustomers = Array.isArray(customers?.customers)
-    ? customers.customers
+  const safeCustomers = Array.isArray(customers)
+    ? customers
     : [];
 
   // Prepare data for the table
@@ -21,9 +22,11 @@ const CustomerTable = ({ customers, onEdit }) => {
         id: customer._id,
         name: customer.name,
         phone: customer.phoneNumber,
+        address: customer.address || '',
         due: customer.due,
         purchaseHistory: customer.purchase_history, // Contains invoice IDs
-        created: formatDate(customer?.created)
+        created: formatDate(customer?.created),
+        createdRaw: customer?.created ? new Date(customer.created).getTime() : 0 // Raw timestamp for sorting
       })),
     [safeCustomers]
   );
@@ -40,43 +43,70 @@ const CustomerTable = ({ customers, onEdit }) => {
         accessor: 'phone'
       },
       {
+        Header: 'Address',
+        accessor: 'address'
+      },
+      {
         Header: 'Due Amount',
         accessor: 'due'
       },
       {
         Header: 'Purchase History',
         accessor: 'purchaseHistory',
-        Cell: ({ value }) => value.length // Show the count of purchase history
+        sortType: (rowA, rowB) => {
+          const countA = rowA.original.purchaseHistory?.length || 0;
+          const countB = rowB.original.purchaseHistory?.length || 0;
+          return countA - countB;
+        },
+        Cell: ({ value }) => value?.length || 0 // Show the count of purchase history
       },
       {
         Header: 'Account Created',
-        accessor: 'created'
+        accessor: 'created',
+        sortType: (rowA, rowB) => {
+          return rowA.original.createdRaw - rowB.original.createdRaw;
+        }
       },
       {
         Header: 'Actions',
+        disableSortBy: true,
         Cell: ({ row }) => (
           <div>
-            <button
-              className='btn btn-primary'
-              onClick={() => onEdit(row.original.id)}
-            >
-              Edit
-            </button>
-            <button
-              className='btn btn-secondary ml-2'
+            <i
+              className='fa fa-edit'
+              onClick={() => history.push(`/dashboard/customer/edit/${row.original.id}`)}
+              title='Edit Customer'
+              style={{ cursor: 'pointer', fontSize: '18px', marginRight: '15px', color: '#007bff' }}
+            ></i>
+            <i
+              className='fa fa-history'
               onClick={() => fetchInvoiceDetails(row.original.purchaseHistory)}
-            >
-              <i className='fa fa-history'></i> History
-            </button>
+              title='View History'
+              style={{ cursor: 'pointer', fontSize: '18px', color: '#6c757d' }}
+            ></i>
           </div>
         )
       }
     ],
-    [onEdit]
+    []
   );
 
   const { getTableProps, getTableBodyProps, headerGroups, rows, prepareRow } =
-    useTable({ columns, data });
+    useTable(
+      {
+        columns,
+        data,
+        initialState: {
+          sortBy: [
+            {
+              id: 'created',
+              desc: true // Sort by newest first
+            }
+          ]
+        }
+      },
+      useSortBy
+    );
 
   // Fetch invoice details dynamically
   const fetchInvoiceDetails = async purchaseHistory => {
@@ -113,8 +143,15 @@ const CustomerTable = ({ customers, onEdit }) => {
             {headerGroups.map(headerGroup => (
               <tr {...headerGroup.getHeaderGroupProps()}>
                 {headerGroup.headers.map(column => (
-                  <th {...column.getHeaderProps()}>
+                  <th {...column.getHeaderProps(column.getSortByToggleProps())} style={{ cursor: column.canSort ? 'pointer' : 'default' }}>
                     {column.render('Header')}
+                    <span>
+                      {column.isSorted
+                        ? column.isSortedDesc
+                          ? ' 🔽'
+                          : ' 🔼'
+                        : ''}
+                    </span>
                   </th>
                 ))}
               </tr>
@@ -147,7 +184,13 @@ const CustomerTable = ({ customers, onEdit }) => {
                 {invoiceDetails.map((item, index) => (
                   <li key={index}>
                     <strong>Invoice:</strong>{' '}
-                    {item.invoice.invoiceNumber || 'N/A'},{' '}
+                    {item.invoice.invoiceNumber ? (
+                      <Link to={`/dashboard/invoice/${item.invoice.invoiceNumber}`}>
+                        {item.invoice.invoiceNumber}
+                      </Link>
+                    ) : (
+                      'N/A'
+                    )},{' '}
                     <strong>Date:</strong>{' '}
                     {item.invoice.created
                       ? formatDateTime(item.invoice.created)

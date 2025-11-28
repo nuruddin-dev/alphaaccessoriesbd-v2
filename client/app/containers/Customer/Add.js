@@ -1,54 +1,45 @@
 /*
  *
- * Add
+ * AddCustomer
  *
  */
 
 import React from 'react';
-
 import { connect } from 'react-redux';
-
 import actions from '../../actions';
 
-import AddProduct from '../../components/Manager/AddProduct';
+import AddCustomer from '../../components/Manager/AddCustomer';
 import SubPage from '../../components/Manager/SubPage';
 
-class Add extends React.PureComponent {
+class AddCustomerPage extends React.PureComponent {
   componentDidMount() {
-    this.props.fetchBrandsSelect();
-    this.props.fetchTagsSelect();
-    this.props.fetchCategoriesSelect();
-    // this.props.fetchStoreCategories();
+    // If you need to fetch anything for customer fields, add here
+    // Example:
+    // this.props.fetchCustomerGroups();
   }
 
   render() {
     const {
       history,
       user,
-      productFormData,
+      customerFormData,
       formErrors,
-      brands,
-      tags,
-      categories,
-      productChange,
-      addProduct
+      customerChange,
+      addCustomer
     } = this.props;
 
     return (
       <SubPage
-        title='Add Product'
+        title='Add Customer'
         actionTitle='Cancel'
         handleAction={() => history.goBack()}
       >
-        <AddProduct
+        <AddCustomer
           user={user}
-          productFormData={productFormData}
+          customerFormData={customerFormData}
           formErrors={formErrors}
-          brands={brands}
-          tags={tags}
-          categories={categories}
-          productChange={productChange}
-          addProduct={addProduct}
+          customerChange={customerChange}
+          addCustomer={addCustomer}
         />
       </SubPage>
     );
@@ -58,12 +49,9 @@ class Add extends React.PureComponent {
 const mapStateToProps = state => {
   return {
     user: state.account.user,
-    productFormData: state.product.productFormData,
-    formErrors: state.product.formErrors,
-    brands: state.brand.brandsSelect,
-    tags: state.tag.tagsSelect,
-    categories: state.category.categoriesSelect
+    customerFormData: state.customer.customerFormData,
+    formErrors: state.customer.formErrors
   };
 };
 
-export default connect(mapStateToProps, actions)(Add);
+export default connect(mapStateToProps, actions)(AddCustomerPage);

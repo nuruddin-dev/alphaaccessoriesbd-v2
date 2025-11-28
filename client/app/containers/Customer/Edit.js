@@ -1,6 +1,6 @@
 /*
  *
- * Edit
+ * EditCustomer
  *
  */
 
@@ -10,25 +10,20 @@ import { connect } from 'react-redux';
 
 import actions from '../../actions';
 
-import EditProduct from '../../components/Manager/EditProduct';
+import EditCustomer from '../../components/Manager/EditCustomer';
 import SubPage from '../../components/Manager/SubPage';
 import NotFound from '../../components/Common/NotFound';
 
 class Edit extends React.PureComponent {
   componentDidMount() {
-    this.props.resetProduct();
-    const productId = this.props.match.params.id;
-    this.props.fetchProduct(productId);
-    this.props.fetchBrandsSelect();
-    this.props.fetchTagsSelect();
-    this.props.fetchCategoriesSelect();
+    const customerId = this.props.match.params.id;
+    this.props.fetchCustomer(customerId);
   }
 
   componentDidUpdate(prevProps) {
     if (this.props.match.params.id !== prevProps.match.params.id) {
-      this.props.resetProduct();
-      const productId = this.props.match.params.id;
-      this.props.fetchProduct(productId);
+      const customerId = this.props.match.params.id;
+      this.props.fetchCustomer(customerId);
     }
   }
 
@@ -36,38 +31,30 @@ class Edit extends React.PureComponent {
     const {
       history,
       user,
-      product,
+      customer,
       formErrors,
-      brands,
-      tags,
-      categories,
-      productEditChange,
-      updateProduct,
-      deleteProduct,
-      activateProduct
+      customerEditChange,
+      updateCustomer,
+      deleteCustomer
     } = this.props;
 
     return (
       <SubPage
-        title='Edit Product'
+        title='Edit Customer'
         actionTitle='Cancel'
         handleAction={history.goBack}
       >
-        {product?._id ? (
-          <EditProduct
+        {customer?._id ? (
+          <EditCustomer
             user={user}
-            product={product}
+            customer={customer}
             formErrors={formErrors}
-            brands={brands}
-            tags={tags}
-            categories={categories}
-            productChange={productEditChange}
-            updateProduct={updateProduct}
-            deleteProduct={deleteProduct}
-            activateProduct={activateProduct}
+            customerChange={customerEditChange}
+            updateCustomer={updateCustomer}
+            deleteCustomer={deleteCustomer}
           />
         ) : (
-          <NotFound message='No product found.' />
+          <NotFound message='No customer found.' />
         )}
       </SubPage>
     );
@@ -77,11 +64,8 @@ class Edit extends React.PureComponent {
 const mapStateToProps = state => {
   return {
     user: state.account.user,
-    product: state.product.product,
-    formErrors: state.product.editFormErrors,
-    brands: state.brand.brandsSelect,
-    tags: state.tag.tagsSelect,
-    categories: state.category.categoriesSelect
+    customer: state.customer.customer,
+    formErrors: state.customer.editFormErrors
   };
 };
 

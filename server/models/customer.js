@@ -11,6 +11,9 @@ const CustomerSchema = new Schema({
     type: String,
     required: true
   },
+  address: {
+    type: String
+  },
   purchase_history: [
     {
       type: Schema.Types.ObjectId,

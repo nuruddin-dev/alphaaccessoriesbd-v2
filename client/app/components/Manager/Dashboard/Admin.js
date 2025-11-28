@@ -33,7 +33,7 @@ const Admin = props => {
 
   // Check if the current route is /dashboard/orderNows
   const isOrderNowSelected = location.pathname === '/dashboard/orderNows';
-  const isInvoiceSelected = location.pathname === '/dashboard/invoice';
+  const isInvoiceSelected = location.pathname.startsWith('/dashboard/invoice');
 
   return (
     <div className='admin'>

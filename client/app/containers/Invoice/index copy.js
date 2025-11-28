@@ -39,12 +39,7 @@ class Invoice extends React.PureComponent {
     notes: '', // Default value for notes
     selectedProductIndex: 0, // Tracks the currently highlighted product
     isSearchInvoice: false, // Flag to indicate if searching for an invoice
-    invoiceId: null, // Store the invoice ID for updating
-    // NEW STATE FOR CUSTOMER SEARCH BY NAME
-    customerSearchTerm: '',
-    focusedCustomerSearch: false,
-    filteredCustomers: [],
-    selectedCustomerIndex: 0
+    invoiceId: null // Store the invoice ID for updating
   };
 
   // Fetch products once component mounts
@@ -242,13 +237,13 @@ class Invoice extends React.PureComponent {
    * Updates item, unit price, and triggers recalculation of totals.
    */
   handleProductChange = (index, productSKU) => {
+    console.log('handleProductChange is called')
     const { products } = this.props;
     const selectedProduct = products.find(
       product => product.sku === productSKU
     );
     const invoiceItems = [...this.state.invoiceItems];
 
-    // Update relevant row data
     invoiceItems[index] = {
       ...invoiceItems[index],
       product: selectedProduct || null,
@@ -262,32 +257,9 @@ class Invoice extends React.PureComponent {
           : selectedProduct?.price || 0)
     };
 
-    // Update notes if product has a note
-    let updatedNotes = this.state.notes;
-    if (selectedProduct?.note) {
-      const productName = selectedProduct.shortName || selectedProduct.name;
-      const noteEntry = `${productName} - ${selectedProduct.note}`;
-
-      // Check if this note entry already exists
-      if (!updatedNotes.includes(noteEntry)) {
-        // Add to notes - append with newline if notes already exist
-        updatedNotes = updatedNotes
-          ? `${updatedNotes}\n${noteEntry}`
-          : noteEntry;
-      }
-    }
-
-    this.setState({
-      invoiceItems,
-      searchTerm: '',
-      focusedRowIndex: null,
-      notes: updatedNotes
-    });
+    this.setState({ invoiceItems, searchTerm: '', focusedRowIndex: null });
   };
 
-  /**
-   * Handles quantity input change and triggers real-time updates.
-   */
   handleQuantityChange = (index, value) => {
     const invoiceItems = [...this.state.invoiceItems];
     const quantity = Math.max(1, parseFloat(value) || 1);
@@ -300,9 +272,6 @@ class Invoice extends React.PureComponent {
     this.setState({ invoiceItems });
   };
 
-  /**
- * Handles unit price input change and recalculates totals dynamically.
- */
   handleUnitPriceChange = (index, value) => {
     const invoiceItems = [...this.state.invoiceItems];
     invoiceItems[index] = {
@@ -338,6 +307,13 @@ class Invoice extends React.PureComponent {
     return finalTotal;
   };
 
+  // calculateFinalTotal = () => {
+  //   const { previousDue, discount } = this.state;
+  //   const subTotal = this.calculateGrandTotal();
+  //   return subTotal + previousDue - discount;
+  // };
+
+
   /**
    * Calculates the remaining due amount.
    */
@@ -348,10 +324,116 @@ class Invoice extends React.PureComponent {
   };
 
   /**
+   * Saves the invoice to the database before printing
+   */
+  // saveInvoiceToDatabase = async () => {
+  //   try {
+  //     // Filter out empty rows
+  //     const filledInvoiceItems = this.state.invoiceItems.filter(
+  //       item => item.product
+  //     );
+
+  //     if (filledInvoiceItems.length === 0) {
+  //       alert('Please add at least one product to the invoice');
+  //       return false;
+  //     }
+
+  //     // Format items for the API
+  //     const items = filledInvoiceItems.map(item => ({
+  //       product: item.product._id,
+  //       productName: item.product.shortName || item.product.name,
+  //       quantity: item.quantity || 1,
+  //       unitPrice: item.unitPrice || 0,
+  //       totalPrice: item.totalPrice || 0
+  //     }));
+
+  //     const subTotal = this.calculateGrandTotal();
+  //     const {
+  //       customerInfo,
+  //       invoiceInfo,
+  //       previousDue,
+  //       discount,
+  //       paid,
+  //       paymentMethod,
+  //       notes,
+  //       isWholesale,
+  //       isSearchInvoice
+  //     } = this.state;
+
+  //     let customer = this.state.customer; // Declare the customer variable
+
+  //     if (isSearchInvoice) {
+  //       // If searching for an invoice, fetch customer with the customerInfo.phone
+  //       const response = await axios.get(
+  //         `${API_URL}/customer/search/phone/${customerInfo.phone}`
+  //       );
+  //       if (response.data.customers && response.data.customers.length > 0) {
+  //         customer = response.data.customers[0]._id; // Use the first matching customer
+  //       } else {
+  //         customer = null; // No customer found
+  //       }
+  //     }
+
+  //     // Create the invoice data object
+  //     const invoiceData = {
+  //       invoiceNumber: invoiceInfo.number,
+  //       items,
+  //       subTotal,
+  //       previousDue: previousDue || 0,
+  //       discount: discount || 0,
+  //       grandTotal: this.calculateFinalTotal(),
+  //       paid: paid || 0,
+  //       due: this.calculateRemainingDue(),
+  //       paymentMethod: paymentMethod || 'cash',
+  //       notes: notes || '',
+  //       customer: customer,
+  //       customerName: customerInfo.name,
+  //       customerPhone: customerInfo.phone,
+  //       createdBy: invoiceInfo.createdBy || 'Admin',
+  //       isWholesale: isWholesale
+  //     };
+
+  //     let response = null;
+
+  //     if (this.state.isSearchInvoice) {
+  //       console.log('update invoice called.')
+  //       // Update an existing invoice
+  //       response = await this.props.updateInvoice(
+  //         this.state.invoiceId,
+  //         invoiceData
+  //       );
+  //     } else {
+  //       console.log('create invoice called.')
+  //       // Create a new invoice
+  //       response = await this.props.createInvoice(invoiceData);
+  //     }
+
+  //     // Update the invoice number in the state with the one from the server
+  //     if (response && response.invoice) {
+  //       this.setState({
+  //         invoiceInfo: {
+  //           ...this.state.invoiceInfo,
+  //           number: response.invoice.invoiceNumber
+  //         }
+  //       });
+  //     }
+
+  //     return true;
+  //   } catch (error) {
+  //     console.error('Failed to save invoice:', error);
+  //     alert('Failed to save invoice. Please try again.');
+  //     return false;
+  //   }
+  // };
+
+
+  /**
  * Saves the invoice to the database before printing
  * Checks if invoice exists by invoice number and updates it, otherwise creates new
  */
   saveInvoiceToDatabase = async () => {
+
+    console.log('invoice number: ', this.state.invoiceInfo.number)
     try {
       // Filter out empty rows
       const filledInvoiceItems = this.state.invoiceItems.filter(
@@ -386,50 +468,19 @@ class Invoice extends React.PureComponent {
 
       let customer = this.state.customer;
 
-      if (customerInfo.name && customerInfo.phone) {
-        // Check if customer is exist with the name
+      // Search for customer by phone if needed
+      if (customerInfo.phone) {
         try {
           const response = await axios.get(
-            `${API_URL}/customer/search/name/${customerInfo.name}`
+            `${API_URL}/customer/search/phone/${customerInfo.phone}`
           );
-          console.log('response: customer : ', response)
           if (response.data.customers && response.data.customers.length > 0) {
             customer = response.data.customers[0]._id;
           }
         } catch (error) {
-          console.log('Customer not found. New customer creating...');
+          console.log('Customer not found');
         }
-        // const newCustomer = {
-        //   name: customerInfo.name,
-        //   phoneNumber: customerInfo.phone,
-        //   purchase_history: [currentInvoiceId], // must be an array of ObjectId(s)
-        //   due: this.state.due,
-        //   updated: new Date()
-        // };
-
-        // try {
-        //   const response = await axios.get(
-        //     `${API_URL}/customer/add/${newCustomer}`
-        //   );
-        //   console.log('Creating new custermer response: ', JSON.stringify(response))
-        // } catch (error) {
-        //   console.log('Creating new customer error: ', error);
-        // }
       }
-
-      // Search for customer by phone if needed
-      // if (customerInfo.phone) {
-      //   try {
-      //     const response = await axios.get(
-      //       `${API_URL}/customer/search/phone/${customerInfo.phone}`
-      //     );
-      //     if (response.data.customers && response.data.customers.length > 0) {
-      //       customer = response.data.customers[0]._id;
-      //     }
-      //   } catch (error) {
-      //     console.log('Customer not found');
-      //   }
-      // }
 
       // Create the invoice data object
       const invoiceData = {
@@ -531,6 +582,10 @@ class Invoice extends React.PureComponent {
     printWindow.document.close();
 
     // Print after styles are loaded
+    // printWindow.onload = function () {
+    //   printWindow.print();
+    //   printWindow.close();
+    // };
     printWindow.onload = function () {
       printWindow.print();
       // Removed the immediate printWindow.close() from here.
@@ -724,10 +779,6 @@ class Invoice extends React.PureComponent {
                   text-align: right;
                   border: none;
                 }
-                .notes-cell {
-                  text-align: left !important;
-                  color: red;
-                }
                 .total-cell {
                   text-align: right;
                   border: 1px solid #ccc;
@@ -790,7 +841,7 @@ class Invoice extends React.PureComponent {
                       <p><strong>Invoice No.:</strong> ${invoiceInfo.number}<br>
                       <strong>Created by:</strong> ${invoiceInfo.createdBy || 'Admin'
       }<br>
-                      <strong>Date:</strong> ${new Date(invoiceInfo.date).toLocaleDateString('en-GB')}<br>>
+                      <strong>Date:</strong> ${invoiceInfo.date}<br>
                       <strong></strong> ${customerInfo.name}<br>
                       <strong></strong> ${customerInfo.phone}</p>
                     </div>
@@ -811,7 +862,7 @@ class Invoice extends React.PureComponent {
                     ${emptyRowsHtml}
                     <!-- Totals section - will only appear at the end of the table -->
                     <tr class="totals-section totals-row">
-                      <td class="notes-cell" style={{ textAlign: 'left', fontWeight: 'bold' }}>${this.state.notes
+                      <td style={{ textAlign: 'right', fontWeight: 'bold' }}>${this.state.notes
       }</td>
                       <td colSpan="2">Total</td>
                       <td class="total-cell">${grandTotal}</td>
@@ -853,6 +904,10 @@ class Invoice extends React.PureComponent {
       ...invoiceItems[index],
       product: null
     };
+
+    console.log('invoiceItems: ', invoiceItems[index])
+
+    // invoiceItems[index] == null ? searchTerm = '' : searchTerm = invoiceItems[index]
 
     this.setState({
       invoiceItems,
@@ -1028,21 +1083,16 @@ class Invoice extends React.PureComponent {
    * Handles customer phone input change and searches for existing customer.
    */
   handleCustomerPhoneChange = async value => {
-    // 1. Update the phone number in the state and clear customer search by name state
+    // Update the phone number in the state
     this.setState({
       customerInfo: {
         ...this.state.customerInfo,
         phone: value
       },
-      isSearchingCustomer: value.length === 11, // Start searching only if length is 11
-      // Clear name search state when phone changes
-      focusedCustomerSearch: false,
-      customerSearchTerm: '',
-      filteredCustomers: [],
-      selectedCustomerIndex: 0
+      isSearchingCustomer: value.length === 11 // Start searching only if length is 11
     });
 
-    // 2. Perform search only if the phone number length is exactly 11
+    // Perform search only if the phone number length is exactly 11
     if (value.length === 11) {
       try {
         const response = await axios.get(
@@ -1089,136 +1139,14 @@ class Invoice extends React.PureComponent {
     }
   };
 
-  /**
-   * NEW: Handles customer name input change and searches for existing customer by name.
-   */
-  handleCustomerNameChange = async value => {
-    // 1. Update the name search term and flag
+  handleCustomerNameChange = value => {
     this.setState({
-      customerSearchTerm: value,
-      focusedCustomerSearch: true,
-      // Clear customer info related to the old name
       customerInfo: {
         ...this.state.customerInfo,
         name: value
-      },
-      customer: null,
-      previousDue: 0,
-      filteredCustomers: [],
-      selectedCustomerIndex: 0
-    });
-
-    // 2. Perform search if the search term is long enough
-    if (value.length >= 2) {
-      try {
-        const response = await axios.get(
-          `${API_URL}/customer/search/name/${value}`
-        );
-
-        if (this._isMounted) {
-          this.setState({
-            filteredCustomers: response.data.customers || [],
-            selectedCustomerIndex: 0 // Reset selected index on new search
-          });
-        }
-      } catch (error) {
-        console.error('Error searching customer by name:', error);
-        if (this._isMounted) {
-          this.setState({ filteredCustomers: [] });
-        }
       }
-    } else if (value.length === 0) {
-      // Clear all customer data if the search box is cleared
-      this.setState({
-        customerInfo: {
-          name: '',
-          phone: ''
-        },
-        customer: null,
-        previousDue: 0,
-        filteredCustomers: [],
-        focusedCustomerSearch: false
-      });
-    } else {
-      // Clear results if search term is too short
-      this.setState({ filteredCustomers: [] });
-    }
-  };
-
-  /**
-   * NEW: Handles the selection of a customer from the dropdown.
-   */
-  handleCustomerSelect = (customer) => {
-    this.setState({
-      customer: customer,
-      customerInfo: {
-        name: customer.name,
-        phone: customer.phoneNumber
-      },
-      previousDue: customer.due || 0,
-      customerSearchTerm: '', // Clear the search term
-      focusedCustomerSearch: false, // Hide the dropdown
-      filteredCustomers: [], // Clear the results
-      selectedCustomerIndex: 0
     });
   };
-
-  /**
-   * NEW: Handles key down events for customer name search (Arrow keys, Enter, Tab).
-   */
-  handleCustomerKeyDown = (e) => {
-    const { filteredCustomers, selectedCustomerIndex } = this.state;
-    const numResults = filteredCustomers.length;
-
-    if (numResults === 0) return;
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      this.setState(prevState => ({
-        selectedCustomerIndex: (prevState.selectedCustomerIndex + 1) % numResults
-      }));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      this.setState(prevState => ({
-        selectedCustomerIndex: (prevState.selectedCustomerIndex - 1 + numResults) % numResults
-      }));
-    } else if (e.key === 'Enter' || e.key === 'Tab') {
-      e.preventDefault();
-      const selectedCustomer = filteredCustomers[selectedCustomerIndex];
-      if (selectedCustomer) {
-        this.handleCustomerSelect(selectedCustomer);
-        // Optionally focus the next field (e.g., Previous Due input if needed)
-      }
-    }
-  };
-
-  /**
-   * NEW: Handles focus on the customer name input.
-   */
-  handleFocusCustomerName = () => {
-    // Only show the dropdown if there's a search term or previous results
-    if (this.state.customerSearchTerm.length > 0 || this.state.filteredCustomers.length > 0) {
-      this.setState({ focusedCustomerSearch: true });
-    }
-    // Set the input value back to the search term (which is the actual input content)
-    this.setState({ customerSearchTerm: this.state.customerInfo.name });
-  }
-
-  /**
-   * NEW: Handles blur on the customer name input.
-   */
-  handleBlurCustomerName = () => {
-    // Use setTimeout to allow click events to process before hiding dropdown
-    setTimeout(() => {
-      this.setState({
-        focusedCustomerSearch: false,
-        selectedCustomerIndex: 0,
-        // Reset the input to the actual customer name if no selection was made
-        customerSearchTerm: this.state.customerInfo.name
-      });
-    }, 200);
-  };
-
 
   handleStock = () => {
     console.log('Handle stock is clicked');
@@ -1255,12 +1183,7 @@ class Invoice extends React.PureComponent {
       isPaidChanged: false, // Track if paid amount has been changed
       notes: '', // Default value for notes
       isSearchInvoice: false, // Flag to indicate if searching for an invoice
-      invoiceId: null, // Store the invoice ID for updating
-      // RESET NEW CUSTOMER SEARCH STATE
-      customerSearchTerm: '',
-      focusedCustomerSearch: false,
-      filteredCustomers: [],
-      selectedCustomerIndex: 0
+      invoiceId: null // Store the invoice ID for updating
     });
   };
 
@@ -1307,12 +1230,7 @@ class Invoice extends React.PureComponent {
       invoiceInfo,
       visibleItems,
       previousDue,
-      isSearchingCustomer,
-      // NEW CUSTOMER SEARCH STATE
-      customerSearchTerm,
-      focusedCustomerSearch,
-      filteredCustomers,
-      selectedCustomerIndex
+      isSearchingCustomer
     } = this.state;
 
     // Calculate filtered products based on search term
@@ -1741,39 +1659,6 @@ class Invoice extends React.PureComponent {
                       onChange={this.handleWholesaleToggle} // Handle toggle
                     />
                   </div>
-                  {/* NEW CUSTOMER NAME INPUT WITH SEARCH DROPDOWN */}
-                  <div style={dropdownStyle}>
-                    <label>Name:</label>
-                    <input
-                      type='text'
-                      style={inputStyle}
-                      value={focusedCustomerSearch ? customerSearchTerm : customerInfo.name} // Show search term when focused
-                      onChange={e =>
-                        this.handleCustomerNameChange(e.target.value)
-                      }
-                      onFocus={this.handleFocusCustomerName}
-                      onBlur={this.handleBlurCustomerName}
-                      onKeyDown={this.handleCustomerKeyDown} // Handle key navigation
-                      placeholder='Customer Name'
-                    />
-                    {focusedCustomerSearch && filteredCustomers.length > 0 && (
-                      <div style={resultsContainerStyle}>
-                        {filteredCustomers.map((customer, i) => (
-                          <div
-                            key={customer._id}
-                            style={
-                              i === selectedCustomerIndex
-                                ? highlightedResultStyle
-                                : resultItemStyle
-                            }
-                            onClick={() => this.handleCustomerSelect(customer)}
-                          >
-                            {customer.name} {customer.address ? `(${customer.address})` : ''}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
                   <div>
                     <label>Phone:</label>
                     <input
@@ -1786,6 +1671,18 @@ class Invoice extends React.PureComponent {
                       placeholder='Phone Number'
                     />
                     {this.state.isSearchingCustomer && <p>Searching...</p>}
+                  </div>
+                  <div>
+                    <label>Name:</label>
+                    <input
+                      type='text'
+                      style={inputStyle}
+                      value={this.state.customerInfo.name} // Tied to state
+                      onChange={e =>
+                        this.handleCustomerNameChange(e.target.value)
+                      } // Updates state on change
+                      placeholder='Customer Name'
+                    />
                   </div>
                 </div>
 
@@ -1845,6 +1742,7 @@ class Invoice extends React.PureComponent {
                             discount: parseFloat(e.target.value) || 0
                           })
                         }
+                        disabled={this.state.previousDue > 0} // Disable if there is previous due
                       />
                     </div>
                   </div>

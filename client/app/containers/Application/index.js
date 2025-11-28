@@ -6,7 +6,7 @@
 
 import React, { Suspense, useEffect, useState, useCallback } from 'react';
 import { connect } from 'react-redux';
-import { Switch, Route, useParams, Redirect } from 'react-router-dom';
+import { Switch, Route, useParams, Redirect, withRouter } from 'react-router-dom';
 import { Container } from 'reactstrap';
 import { API_URL } from '../../constants';
 import actions from '../../actions';
@@ -145,10 +145,12 @@ class Application extends React.PureComponent {
   };
 
   render() {
+    const isInvoicePage = this.props.location.pathname.startsWith('/dashboard/invoice');
+
     return (
       <div className='application'>
         <Notification />
-        <Navigation />
+        {!isInvoicePage && <Navigation />}
         <main className='main'>
           <Container>
             <div className='wrapper'>
@@ -188,7 +190,7 @@ class Application extends React.PureComponent {
             </div>
           </Container>
         </main>
-        <Footer />
+        {!isInvoicePage && <Footer />}
       </div>
     );
   }
@@ -199,4 +201,4 @@ const mapStateToProps = state => ({
   products: state.product.storeProducts
 });
 
-export default connect(mapStateToProps, actions)(Application);
+export default withRouter(connect(mapStateToProps, actions)(Application));

@@ -38,7 +38,7 @@ class List extends React.PureComponent {
           actionTitle='Add'
           handleAction={() => history.push('/dashboard/customer/add')}
         >
-          <CustomerList customers={customers} />
+          <CustomerList customers={customers} history={history} />
           {/* {isLoading ? (
             <LoadingIndicator inline />
           ) : customers.length > 0 ? (

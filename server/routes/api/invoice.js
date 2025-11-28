@@ -144,6 +144,9 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
     if (customer) {
       const customerDoc = await Customer.findById(customer);
       if (customerDoc) {
+        if (!customerDoc.purchase_history) {
+          customerDoc.purchase_history = [];
+        }
         customerDoc.purchase_history.push(savedInvoice._id);
         customerDoc.due = due; // Update the customer's due amount
         await customerDoc.save();

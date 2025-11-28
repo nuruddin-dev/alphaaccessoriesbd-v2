@@ -49,6 +49,32 @@ router.get('/:id', auth, async (req, res) => {
   }
 });
 
+// @route GET api/customer/search/name/:name
+// @desc Search customers by name
+// @access Private
+router.get('/search/name/:name', auth, async (req, res) => {
+  try {
+    const name = req.params.name;
+    const customers = await Customer.find({
+      name: { $regex: name, $options: 'i' }
+    });
+
+    if (customers.length === 0) {
+      return res.status(404).json({
+        message: 'No customers found with that name.'
+      });
+    }
+
+    res.status(200).json({
+      customers
+    });
+  } catch (error) {
+    res.status(400).json({
+      error: 'Your request could not be processed. Please try again.'
+    });
+  }
+});
+
 // @route GET api/customer/search/phone/:phoneNumber
 // @desc Search customers by phone number
 // @access Private
@@ -80,7 +106,7 @@ router.get('/search/phone/:phoneNumber', auth, async (req, res) => {
 // @access Private
 router.post('/add', auth, role.check(ROLES.Admin), async (req, res) => {
   try {
-    const { name, phoneNumber, invoiceId, due } = req.body;
+    const { name, phoneNumber, address, invoiceId, due } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: 'You must enter a name.' });
@@ -101,8 +127,9 @@ router.post('/add', auth, role.check(ROLES.Admin), async (req, res) => {
     const customer = new Customer({
       name,
       phoneNumber,
+      address,
       due: due || 0,
-      purchase_history: [invoiceId]
+      purchase_history: invoiceId ? [invoiceId] : []
     });
 
     const savedCustomer = await customer.save();
@@ -293,9 +320,8 @@ router.put(
 
       res.status(200).json({
         success: true,
-        message: `Customer due ${
-          isPayment ? 'payment' : 'charge'
-        } recorded successfully!`,
+        message: `Customer due ${isPayment ? 'payment' : 'charge'
+          } recorded successfully!`,
         customer: updatedCustomer
       });
     } catch (error) {
