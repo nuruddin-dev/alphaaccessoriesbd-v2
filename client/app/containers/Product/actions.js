@@ -317,94 +317,60 @@ export const addProduct = () => {
   return async (dispatch, getState) => {
     try {
       const rules = {
-        sku: 'required|alpha_dash',
-        name: 'required',
-        shortName: 'required',
-        description: 'required',
-        quantity: 'required|numeric',
-        price: 'required|numeric',
-        buyingPrice: 'required|numeric', // Validation for Buying Price
-        wholeSellPrice: 'required|numeric', // Validation for Whole Sell Price
-        popular: 'required',
-        premium: 'required',
-        image: 'required',
-        brand: 'required',
-        category: 'required',
-        colors: 'required',
-        imageUrl: 'required'
+        shortName: 'required'
+        // All other fields are optional - will use defaults if not provided
       };
 
       const product = getState().product.productFormData;
       const user = getState().account.user;
       const brands = getState().brand.brandsSelect;
       const categories = getState().category.categoriesSelect;
-      const tags = product.tags;
-      const brand = unformatSelectOptions([product.brand]);
-      const category = unformatSelectOptions([product.category]);
+      const tags = product.tags || [];
+      const brand = product.brand ? unformatSelectOptions([product.brand]) : null;
+      const category = product.category ? unformatSelectOptions([product.category]) : null;
+
+      // Generate SKU if not provided
+      const generatedSku = product.sku || `${product.shortName.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}`;
 
       const newProduct = {
-        sku: product.sku,
-        name: product.name,
+        sku: generatedSku,
+        name: product.name || product.shortName, // Default to shortName if name not provided
         shortName: product.shortName,
-        description: product.description,
-        price: product.price,
-        buyingPrice: product.buyingPrice, // Include Buying Price
-        wholeSellPrice: product.wholeSellPrice, // Include Whole Sell Price
-        quantity: product.quantity,
+        description: product.description || '', // Default to empty string
+        price: product.price || 0, // Default to 0
+        buyingPrice: product.buyingPrice || 0, // Default to 0
+        wholeSellPrice: product.wholeSellPrice || 0, // Default to 0
+        quantity: product.quantity || 0, // Default to 0
         image: product.image,
-        isActive: product.isActive,
-        popular: product.popular.value,
-        premium: product.premium.value,
+        isActive: product.isActive !== undefined ? product.isActive : false, // Default to false
+        popular: product.popular?.value !== undefined ? product.popular.value : 0, // Default to No
+        premium: product.premium?.value !== undefined ? product.premium.value : 0, // Default to No
         brand:
           user.role !== ROLES.Merchant
             ? brand != 0
               ? brand
               : null
-            : brands[1].value,
-        tags: [tags.map(tag => tag.value)],
+            : brands[1]?.value || null,
+        tags: tags.length > 0 ? [tags.map(tag => tag.value)] : [[]],
         category:
           user.role !== ROLES.Merchant
             ? category != 0
               ? category
               : null
-            : categories[1].value,
-        colors: [...new Set(product.colors.map(color => color.label))],
-        imageUrl: product.imageUrl,
-        imageAlt: product.imageAlt,
-        metaTitle: product.metaTitle,
-        metaDescription: product.metaDescription,
-        fullDescription: product.fullDescription,
-        specification: product.specification,
-        note: product.note, // Include Note
-        history: [
-          // {
-          //   updatedAt: new Date(),
-          //   updatedBy: user._id, // Set the user who added the product
-          //   changes: {
-          //     note: product.note // Add the note to the history
-          //   }
-          // }
-        ] // Initialize history with the first entry
+            : categories[1]?.value || null,
+        colors: product.colors?.length > 0 ? [...new Set(product.colors.map(color => color.label))] : [],
+        imageUrl: product.imageUrl || '',
+        imageAlt: product.imageAlt || '',
+        metaTitle: product.metaTitle || '',
+        metaDescription: product.metaDescription || '',
+        fullDescription: product.fullDescription || '',
+        specification: product.specification || '',
+        note: product.note || '',
+        history: []
       };
 
       const { isValid, errors } = allFieldsValidation(newProduct, rules, {
-        'required.sku': 'Sku is required.',
-        'alpha_dash.sku':
-          'Sku may have alpha-numeric characters, as well as dashes and underscores only.',
-        'required.name': 'Name is required.',
-        'required.shortName': 'Short name is required.',
-        'required.description': 'Description is required.',
-        'required.quantity': 'Quantity is required.',
-        'required.price': 'Price is required.',
-        'required.buyingPrice': 'Buying Price is required.', // Error message for Buying Price
-        'required.wholeSellPrice': 'Whole Sell Price is required.', // Error message for Whole Sell Price
-        'required.popular': 'Popular is required.',
-        'required.premium': 'Premium is required.',
-        'required.image': 'Please upload files with jpg, jpeg, png format.',
-        'required.brand': 'Brand is required.',
-        'required.category': 'Category is required.',
-        'required.colors': 'Product Colors is required.',
-        'required.imageUrl': 'Image URL is required.'
+        'required.shortName': 'Short name is required.'
       });
 
       if (!isValid) {
@@ -415,7 +381,8 @@ export const addProduct = () => {
 
       for (const key in newProduct) {
         if (newProduct.hasOwnProperty(key)) {
-          if (key === 'brand' && newProduct[key] === null) {
+          // Skip null brand and category
+          if ((key === 'brand' || key === 'category') && newProduct[key] === null) {
             continue;
           } else if (
             typeof newProduct[key] === 'object' &&
@@ -446,6 +413,30 @@ export const addProduct = () => {
         });
         dispatch(resetProduct());
         dispatch(goBack());
+      }
+    } catch (error) {
+      handleError(error, dispatch);
+    }
+  };
+};
+
+
+
+export const updateProductDetails = (id, productData) => {
+  return async (dispatch, getState) => {
+    try {
+      const response = await axios.put(`${API_URL}/product/${id}`, {
+        product: productData
+      });
+
+      const successfulOptions = {
+        title: `${response.data.message}`,
+        position: 'tr',
+        autoDismiss: 1
+      };
+
+      if (response.data.success === true) {
+        dispatch(success(successfulOptions));
       }
     } catch (error) {
       handleError(error, dispatch);

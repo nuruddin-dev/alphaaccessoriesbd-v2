@@ -82,7 +82,7 @@ const ProductSchema = new Schema({
   },
   isActive: {
     type: Boolean,
-    default: true
+    default: false
   },
   brand: {
     type: Schema.Types.ObjectId,

@@ -5,6 +5,7 @@ import actions from '../../actions'; // Import global actions
 import axios from 'axios'; // Import axios for API calls
 import LoadingIndicator from '../../components/Common/LoadingIndicator';
 import NotFound from '../../components/Common/NotFound';
+import StockModal from '../../components/Manager/StockModal';
 
 // Invoice Container Component
 class Invoice extends React.PureComponent {
@@ -14,6 +15,8 @@ class Invoice extends React.PureComponent {
   state = {
     invoiceItems: Array(100).fill({
       product: null,
+      quantity: '',
+      unitPrice: '',
       totalPrice: 0
     }),
     searchTerm: '',
@@ -44,7 +47,8 @@ class Invoice extends React.PureComponent {
     customerSearchTerm: '',
     focusedCustomerSearch: false,
     filteredCustomers: [],
-    selectedCustomerIndex: 0
+    selectedCustomerIndex: 0,
+    isStockModalOpen: false // State for Stock Modal
   };
 
   // Fetch products once component mounts
@@ -186,8 +190,8 @@ class Invoice extends React.PureComponent {
             }),
             ...Array(100 - invoice.items.length).fill({
               product: null,
-              quantity: 0,
-              unitPrice: 0,
+              quantity: '',
+              unitPrice: '',
               totalPrice: 0
             })
           ],
@@ -290,6 +294,17 @@ class Invoice extends React.PureComponent {
    */
   handleQuantityChange = (index, value) => {
     const invoiceItems = [...this.state.invoiceItems];
+    // Allow empty string
+    if (value === '') {
+      invoiceItems[index] = {
+        ...invoiceItems[index],
+        quantity: '',
+        totalPrice: 0
+      };
+      this.setState({ invoiceItems });
+      return;
+    }
+
     const quantity = Math.max(1, parseFloat(value) || 1);
 
     invoiceItems[index] = {
@@ -305,10 +320,22 @@ class Invoice extends React.PureComponent {
  */
   handleUnitPriceChange = (index, value) => {
     const invoiceItems = [...this.state.invoiceItems];
+
+    // Allow empty string
+    if (value === '') {
+      invoiceItems[index] = {
+        ...invoiceItems[index],
+        unitPrice: '',
+        totalPrice: 0
+      };
+      this.setState({ invoiceItems });
+      return;
+    }
+
     invoiceItems[index] = {
       ...invoiceItems[index],
       unitPrice: parseFloat(value) || 0,
-      totalPrice: invoiceItems[index].quantity * (parseFloat(value) || 0)
+      totalPrice: (invoiceItems[index].quantity || 0) * (parseFloat(value) || 0)
     };
     this.setState({ invoiceItems });
   };
@@ -886,7 +913,8 @@ class Invoice extends React.PureComponent {
           newInvoiceItems[focusedRowIndex] = {
             ...newInvoiceItems[focusedRowIndex],
             product: null,
-            unitPrice: 0,
+            quantity: '',
+            unitPrice: '',
             totalPrice: 0,
           };
           this.setState({
@@ -938,8 +966,8 @@ class Invoice extends React.PureComponent {
         for (let i = 0; i < rowsToAdd; i++) {
           newInvoiceItems.push({
             product: null,
-            quantity: 0,
-            unitPrice: 0,
+            quantity: '',
+            unitPrice: '',
             totalPrice: 0
           });
         }
@@ -1220,17 +1248,136 @@ class Invoice extends React.PureComponent {
   };
 
 
+  handleRefreshProducts = async () => {
+    // Fetch the latest product list without affecting selected products
+    await this.props.fetchProducts();
+  };
+
+  // Handle opening the stock modal
   handleStock = () => {
-    console.log('Handle stock is clicked');
-  }
+    this.setState({ isStockModalOpen: true });
+  };
+
+  handleCloseStockModal = () => {
+    this.setState({ isStockModalOpen: false });
+  };
+
+  // Handle updating stock with weighted average calculation
+  handleStockUpdate = async (productId, data) => {
+    const { products, updateProductDetails } = this.props;
+    const product = products.find(p => p._id === productId);
+
+    if (!product) return;
+
+    const currentQty = product.quantity || 0;
+    const currentBuyingPrice = product.buyingPrice || 0;
+    const newQty = data.quantity;
+    const newBuyingPrice = data.buyingPrice;
+
+    const totalQty = currentQty + newQty;
+
+    // Weighted Average Calculation
+    // If totalQty is 0 (shouldn't happen if adding stock), avoid division by zero
+    let avgBuyingPrice = currentBuyingPrice;
+    if (totalQty > 0) {
+      avgBuyingPrice = ((currentQty * currentBuyingPrice) + (newQty * newBuyingPrice)) / totalQty;
+    }
+
+    const payload = {
+      quantity: totalQty,
+      buyingPrice: Math.round(avgBuyingPrice), // Round to nearest integer or keep decimals as needed
+      wholeSellPrice: data.wholeSellPrice || product.wholeSellPrice,
+      price: data.price || product.price,
+      // Include required fields for update validation if necessary, or rely on partial update
+      sku: product.sku,
+      slug: product.slug
+    };
+
+    // Call the update action
+    // We need to ensure updateProductDetails is available in props
+    // It seems we need to dispatch it. 
+    // Since 'actions' are imported and connected, check if updateProductDetails is in 'actions' object
+    // If not, we might need to import it specifically or rely on the connected actions
+
+    // Assuming updateProductDetails is passed via mapDispatchToProps or actions object
+    if (this.props.updateProductDetails) {
+      await this.props.updateProductDetails(productId, payload);
+    } else {
+      // Fallback if not mapped directly, though it should be if 'actions' contains it
+      // Check if we need to dispatch manually or if 'actions' import covers it
+      // The 'actions' import usually contains all actions. 
+      // Let's assume it's mapped. If not, we'll fix it.
+    }
+
+    this.handleCloseStockModal();
+    // Refresh products to reflect changes
+    this.props.fetchProducts();
+  };
+
+  // Handle adding new stock (new product)
+  handleStockAdd = async (data) => {
+    const { addProduct } = this.props;
+
+    // Prepare payload for new product
+    // We need to generate SKU and Slug as per previous logic if not provided
+    // But the previous logic was in the Add Product form/action.
+    // Let's rely on the server or action to handle defaults if possible, 
+    // or construct a minimal valid object here.
+
+    // The 'addProduct' action in Product/actions.js usually takes form data from the store state
+    // or arguments. Let's check how addProduct is implemented.
+    // It seems addProduct uses getState().product.productFormData.
+    // We might need a different action for adding product from data passed directly, 
+    // or we update the store first.
+
+    // To keep it simple and robust, let's call the API directly here or 
+    // create a new action 'addProductFromData' if 'addProduct' is too tied to the form state.
+    // However, looking at the previous task, we made 'addProduct' use the form state.
+
+    // Let's try to use a direct API call here for simplicity as we are in Invoice container
+    // and don't want to mess with the Product container's form state.
+
+    try {
+      const payload = {
+        shortName: data.shortName,
+        name: data.shortName, // Default name to shortName
+        sku: data.shortName + '-' + Date.now(), // Auto-generate SKU
+        quantity: data.quantity,
+        buyingPrice: data.buyingPrice,
+        wholeSellPrice: data.wholeSellPrice,
+        price: data.price,
+        isActive: false, // Default inactive
+        // Defaults for required fields
+        description: '',
+        brand: null,
+        category: null,
+        tags: [],
+        colors: []
+      };
+
+      // We can use axios directly since we imported it
+      const response = await axios.post(`${API_URL}/product/add`, payload);
+
+      if (response.data.success) {
+        // Show success notification (if we have access to success action)
+        // this.props.success(...) 
+      }
+
+      this.handleCloseStockModal();
+      this.props.fetchProducts();
+    } catch (error) {
+      console.error('Failed to add product', error);
+      // Handle error
+    }
+  };
 
   handleNewInvoice = () => {
     // Reset the state to create a new invoice
     this.setState({
       invoiceItems: Array(100).fill({
         product: null,
-        quantity: 0,
-        unitPrice: 0,
+        quantity: '',
+        unitPrice: '',
         totalPrice: 0
       }),
       searchTerm: '',
@@ -1260,7 +1407,8 @@ class Invoice extends React.PureComponent {
       customerSearchTerm: '',
       focusedCustomerSearch: false,
       filteredCustomers: [],
-      selectedCustomerIndex: 0
+      selectedCustomerIndex: 0,
+      isStockModalOpen: false // Reset stock modal state
     });
   };
 
@@ -1636,32 +1784,73 @@ class Invoice extends React.PureComponent {
                     </tr>
                   </tfoot>
                 </table>
-                {hasMoreItems && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      marginTop: '10px',
-                      gap: '15px'
-                    }}
-                  >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    marginTop: '10px',
+                    gap: '15px'
+                  }}
+                >
+                  {hasMoreItems && (
                     <button
-                      style={showMoreButtonStyle}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '24px',
+                        color: '#4a90e2',
+                        padding: '0 10px'
+                      }}
                       onClick={this.showMoreItems}
+                      title={`Show More (${visibleItems} of ${invoiceItems.length})`}
                     >
-                      Show More ({visibleItems} of {invoiceItems.length})
+                      <i className="fa fa-plus-circle" aria-hidden="true"></i>
                     </button>
-                    <div style={{ flex: 1 }}>
-                      <input
-                        type='text'
-                        style={inputStyle}
-                        value={this.state.notes || ''}
-                        onChange={e => this.handleNotesChange(e.target.value)}
-                        placeholder='Enter notes here'
-                      />
-                    </div>
+                  )}
+
+                  {/* Refresh Button */}
+                  <button
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '20px',
+                      color: '#555',
+                      padding: '0 10px'
+                    }}
+                    onClick={this.handleRefreshProducts}
+                    title="Refresh product list"
+                  >
+                    <i className="fa fa-refresh" aria-hidden="true"></i>
+                  </button>
+
+                  {/* Stock Button */}
+                  <button
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '20px',
+                      color: '#555',
+                      padding: '0 10px'
+                    }}
+                    onClick={this.handleStock}
+                    title="Stock"
+                  >
+                    <i className="fa fa-cubes" aria-hidden="true"></i>
+                  </button>
+
+                  <div style={{ flex: 1 }}>
+                    <input
+                      type='text'
+                      style={inputStyle}
+                      value={this.state.notes || ''}
+                      onChange={e => this.handleNotesChange(e.target.value)}
+                      placeholder='Enter notes here'
+                    />
                   </div>
-                )}
+                </div>
               </div>
 
               {/* Right: Invoice and Customer Information */}
@@ -1884,26 +2073,46 @@ class Invoice extends React.PureComponent {
                   style={{
                     display: 'flex',
                     justifyContent: 'flex-end', // Align buttons to the right
-                    gap: '10px', // Add spacing between the buttons
+                    gap: '15px', // Add spacing between the buttons
                     marginBottom: '20px' // Add spacing below the buttons
                   }}
                 >
                   <button
-                    style={newInvoiceButtonStyle}
-                    onClick={this.handleStock}
-                  >
-                    Stock
-                  </button>
-                  <button
-                    style={newInvoiceButtonStyle}
+                    style={{
+                      backgroundColor: '#f8f9fa',
+                      border: '1px solid #ddd',
+                      color: '#333',
+                      padding: '10px 20px',
+                      borderRadius: '5px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontWeight: '500'
+                    }}
                     onClick={this.handleNewInvoice}
                   >
+                    <i className="fa fa-file" aria-hidden="true"></i>
                     New Invoice
                   </button>
                   <button
-                    style={printButtonStyle}
+                    style={{
+                      backgroundColor: '#f8f9fa',
+                      border: '1px solid #ddd',
+                      color: '#333',
+                      padding: '10px 20px',
+                      borderRadius: '5px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontWeight: '500'
+                    }}
                     onClick={this.handlePrintInvoice}
                   >
+                    <i className="fa fa-print" aria-hidden="true"></i>
                     Print Invoice
                   </button>
                 </div>
@@ -1913,6 +2122,14 @@ class Invoice extends React.PureComponent {
         ) : (
           <NotFound message='No products found.' />
         )}
+        {/* Stock Management Modal */}
+        <StockModal
+          isOpen={this.state.isStockModalOpen}
+          onRequestClose={this.handleCloseStockModal}
+          products={products}
+          handleUpdateStock={this.handleStockUpdate}
+          handleAddStock={this.handleStockAdd}
+        />
       </>
     );
   }

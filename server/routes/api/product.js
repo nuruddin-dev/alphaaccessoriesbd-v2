@@ -430,89 +430,98 @@ router.post(
   upload.single('image'),
   async (req, res) => {
     try {
-      const sku = req.body.sku;
-      const name = req.body.name;
       const shortName = req.body.shortName;
-      const description = req.body.description;
-      const quantity = req.body.quantity;
-      const previousPrice = req.body.previousPrice;
-      const price = req.body.price;
-      const buyingPrice = req.body.buyingPrice; // New field
-      const wholeSellPrice = req.body.wholeSellPrice; // New field
-      const history = req.body.history ? JSON.parse(req.body.history) : []; // New field
-      const popular = req.body.popular;
-      const premium = req.body.premium;
-      const isActive = req.body.isActive;
-      // Parse JSON strings for object references
-      const brand = req.body.brand ? JSON.parse(req.body.brand)[0] : null;
-      const category = req.body.category
-        ? JSON.parse(req.body.category)[0]
-        : null;
 
-      // Parse and flatten tags array (it appears to be nested)
-      let tags = [];
-      if (req.body.tags) {
-        const parsedTags = JSON.parse(req.body.tags);
-        // Handle potential nested array structure
-        tags = Array.isArray(parsedTags[0]) ? parsedTags[0] : parsedTags;
-      }
-      // Parse colors array
-      let colors = [];
-      if (req.body.colors) {
-        const parsedColors = JSON.parse(req.body.colors);
-        colors = Array.isArray(parsedColors) ? parsedColors : [parsedColors];
-      }
-      const image = req.file;
-      const imageUrl = req.body.imageUrl;
-      const imageAlt = req.body.imageAlt;
-      const metaTitle = req.body.metaTitle;
-      const metaDescription = req.body.metaDescription;
-      const fullDescription = req.body.fullDescription;
-      const specification = req.body.specification;
-
-      if (!sku) {
-        return res.status(400).json({ error: 'You must enter sku.' });
+      // Only shortName is required
+      if (!shortName) {
+        return res.status(400).json({ error: 'You must enter short name.' });
       }
 
-      if (!description || !name || !shortName) {
-        return res
-          .status(400)
-          .json({ error: 'You must enter description, name & short name.' });
-      }
+      // Generate SKU if not provided (shortName + timestamp)
+      const sku = req.body.sku || `${shortName.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}`;
 
-      if (!quantity) {
-        return res.status(400).json({ error: 'You must enter a quantity.' });
-      }
-
-      if (!buyingPrice) {
-        return res
-          .status(400)
-          .json({ error: 'You must enter a buying price.' });
-      }
-      if (!wholeSellPrice) {
-        return res
-          .status(400)
-          .json({ error: 'You must enter a whole sell price.' });
-      }
-      if (!price) {
-        return res.status(400).json({ error: 'You must enter a price.' });
-      }
-
-      if (!brand) {
-        return res.status(400).json({ error: 'You must enter a brand.' });
-      }
-      if (!category) {
-        return res.status(400).json({ error: 'You must enter a category.' });
-      }
-
+      // Check if SKU already exists
       const foundProduct = await Product.findOne({ sku });
-
       if (foundProduct) {
         return res.status(400).json({ error: 'This sku is already in use.' });
       }
 
-      const { imageKey } = await s3Upload(image);
-      // const { imageUrl, imageKey } = await s3Upload(image);
+      // Set defaults for other fields
+      const name = req.body.name || shortName;
+      const description = req.body.description || '';
+      const quantity = req.body.quantity || 0;
+      const previousPrice = req.body.previousPrice || 0;
+      const price = req.body.price || 0;
+      const buyingPrice = req.body.buyingPrice || 0;
+      const wholeSellPrice = req.body.wholeSellPrice || 0;
+      const history = req.body.history ? JSON.parse(req.body.history) : [];
+      const popular = req.body.popular || false;
+      const premium = req.body.premium || false;
+
+      // Parse JSON strings for object references with safe null handling
+      let brand = null;
+      if (req.body.brand && req.body.brand !== 'null' && req.body.brand !== 'undefined') {
+        try {
+          const parsedBrand = JSON.parse(req.body.brand);
+          brand = Array.isArray(parsedBrand) ? parsedBrand[0] : parsedBrand;
+        } catch (e) {
+          brand = null;
+        }
+      }
+
+      let category = null;
+      if (req.body.category && req.body.category !== 'null' && req.body.category !== 'undefined') {
+        try {
+          const parsedCategory = JSON.parse(req.body.category);
+          category = Array.isArray(parsedCategory) ? parsedCategory[0] : parsedCategory;
+        } catch (e) {
+          category = null;
+        }
+      }
+
+      // Parse and flatten tags array with safe null handling
+      let tags = [];
+      if (req.body.tags && req.body.tags !== 'null' && req.body.tags !== 'undefined') {
+        try {
+          const parsedTags = JSON.parse(req.body.tags);
+          tags = Array.isArray(parsedTags[0]) ? parsedTags[0] : (Array.isArray(parsedTags) ? parsedTags : []);
+        } catch (e) {
+          tags = [];
+        }
+      }
+
+      // Parse colors array with safe null handling
+      let colors = [];
+      if (req.body.colors && req.body.colors !== 'null' && req.body.colors !== 'undefined') {
+        try {
+          const parsedColors = JSON.parse(req.body.colors);
+          colors = Array.isArray(parsedColors) ? parsedColors : [parsedColors];
+        } catch (e) {
+          colors = [];
+        }
+      }
+
+      const image = req.file;
+      const imageUrl = req.body.imageUrl || '';
+      const imageAlt = req.body.imageAlt || '';
+      const metaTitle = req.body.metaTitle || '';
+      const metaDescription = req.body.metaDescription || '';
+      const fullDescription = req.body.fullDescription || '';
+      const specification = req.body.specification || '';
+
+      // Determine if product has minimal data
+      // If brand, category, description, or price is missing, set isActive to false
+      const hasMinimalData = !brand || !category || !description || !price;
+      const isActive = req.body.isActive !== undefined
+        ? req.body.isActive
+        : (hasMinimalData ? false : true);
+
+      // Upload image if provided
+      let imageKey = '';
+      if (image) {
+        const uploadResult = await s3Upload(image);
+        imageKey = uploadResult.imageKey;
+      }
 
       const product = new Product({
         sku,
@@ -522,9 +531,9 @@ router.post(
         quantity,
         price,
         previousPrice,
-        buyingPrice, // New field
-        wholeSellPrice, // New field
-        history, // New field
+        buyingPrice,
+        wholeSellPrice,
+        history,
         popular,
         premium,
         isActive,

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import ProductRow from './ProductRow';
 
 const ProductList = props => {
-  const { products } = props;
+  const { products, updateProductDetails } = props;
 
   // State for sorting
   const [sortConfig, setSortConfig] = useState({
@@ -39,7 +40,9 @@ const ProductList = props => {
     } else if (
       key === 'quantity' ||
       key === 'previousPrice' ||
-      key === 'currentPrice'
+      key === 'price' ||
+      key === 'buyingPrice' ||
+      key === 'wholeSellPrice'
     ) {
       return direction === 'asc' ? a[key] - b[key] : b[key] - a[key];
     } else if (key === 'created') {
@@ -77,10 +80,9 @@ const ProductList = props => {
       <table className='table product-table'>
         <thead>
           <tr>
-            <th scope='col' style={{ width: '10%' }}></th>
             <th
               scope='col'
-              style={{ width: 'auto', cursor: 'pointer' }}
+              style={{ width: '25%', cursor: 'pointer' }}
               onClick={() => handleSort('name')}
             >
               Name {getSortSymbol('name')}
@@ -95,55 +97,43 @@ const ProductList = props => {
             <th
               scope='col'
               style={{ width: '10%', cursor: 'pointer' }}
-              onClick={() => handleSort('previousPrice')}
+              onClick={() => handleSort('buyingPrice')}
             >
-              P Price {getSortSymbol('previousPrice')}
+              Buy {getSortSymbol('buyingPrice')}
             </th>
             <th
               scope='col'
               style={{ width: '10%', cursor: 'pointer' }}
-              onClick={() => handleSort('currentPrice')}
+              onClick={() => handleSort('wholeSellPrice')}
             >
-              Price {getSortSymbol('currentPrice')}
+              WholeSell {getSortSymbol('wholeSellPrice')}
             </th>
-            <th scope='col' style={{ width: '10%' }}></th>
+            <th
+              scope='col'
+              style={{ width: '10%', cursor: 'pointer' }}
+              onClick={() => handleSort('price')}
+            >
+              Price {getSortSymbol('price')}
+            </th>
+            <th
+              scope='col'
+              style={{ width: '10%', cursor: 'pointer' }}
+              onClick={() => handleSort('previousPrice')}
+            >
+              P Price {getSortSymbol('previousPrice')}
+            </th>
+            <th scope='col' style={{ width: '5%' }}>Active</th>
+            <th scope='col' style={{ width: '15%' }}>Actions</th>
           </tr>
         </thead>
         <tbody>
           {sortedProducts.map(product => (
-            <tr key={product._id}>
-              <td>
-                <img
-                  loading='lazy'
-                  className='item-image'
-                  src={
-                    product && product.imageUrl
-                      ? product.imageUrl
-                      : '/images/placeholder-image.png'
-                  }
-                  alt={product.name}
-                  style={{ maxWidth: '50px', maxHeight: '50px' }}
-                />
-              </td>
-              <td className='text-truncate product-name-cell'>
-                {product.name}
-              </td>
-              <td>{product.quantity || 0}</td>
-              <td>{product.previousPrice ? `${product.previousPrice}` : ''}</td>
-              <td>{product.price ? `${product.price}` : ''}</td>
-              <td>
-                <Link
-                  to={`/dashboard/product/edit/${product._id}`}
-                  className='fa fa-edit'
-                ></Link>
-                <button
-                  className='fa fa-history'
-                  onClick={() =>
-                    handleOpenHistoryModal(product.history, product.shortName)
-                  }
-                ></button>
-              </td>
-            </tr>
+            <ProductRow
+              key={product._id}
+              product={product}
+              updateProductDetails={updateProductDetails}
+              handleOpenHistoryModal={handleOpenHistoryModal}
+            />
           ))}
         </tbody>
       </table>
