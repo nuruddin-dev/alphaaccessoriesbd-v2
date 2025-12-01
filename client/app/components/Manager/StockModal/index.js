@@ -9,23 +9,25 @@ const StockModal = ({
     handleAddStock
 }) => {
     const [activeTab, setActiveTab] = useState('update'); // 'update' or 'add'
+    const [searchTerm, setSearchTerm] = useState('');
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
     // Update Stock State
     const [selectedProduct, setSelectedProduct] = useState('');
     const [updateData, setUpdateData] = useState({
-        quantity: 0,
-        buyingPrice: 0,
-        wholeSellPrice: 0,
-        price: 0
+        quantity: '',
+        buyingPrice: '',
+        wholeSellPrice: '',
+        price: ''
     });
 
     // Add Stock State
     const [addData, setAddData] = useState({
         shortName: '',
-        quantity: 0,
-        buyingPrice: 0,
-        wholeSellPrice: 0,
-        price: 0
+        quantity: '',
+        buyingPrice: '',
+        wholeSellPrice: '',
+        price: ''
     });
 
     // Reset state when modal opens/closes
@@ -33,33 +35,50 @@ const StockModal = ({
         if (isOpen) {
             setActiveTab('update');
             setSelectedProduct('');
-            setUpdateData({ quantity: 0, buyingPrice: 0, wholeSellPrice: 0, price: 0 });
-            setAddData({ shortName: '', quantity: 0, buyingPrice: 0, wholeSellPrice: 0, price: 0 });
+            setSearchTerm('');
+            setIsDropdownOpen(false);
+            setUpdateData({ quantity: '', buyingPrice: '', wholeSellPrice: '', price: '' });
+            setAddData({ shortName: '', quantity: '', buyingPrice: '', wholeSellPrice: '', price: '' });
         }
     }, [isOpen]);
 
     // Handle product selection in Update tab
-    const handleProductSelect = (e) => {
-        const productId = e.target.value;
+    const handleProductSelect = (product) => {
+        const productId = product._id;
         setSelectedProduct(productId);
+        setSearchTerm(product.shortName || product.name);
+        setIsDropdownOpen(false);
 
-        // Pre-fill prices from selected product if available
-        const product = products.find(p => p._id === productId);
-        if (product) {
-            setUpdateData(prev => ({
-                ...prev,
-                buyingPrice: product.buyingPrice || 0,
-                wholeSellPrice: product.wholeSellPrice || 0,
-                price: product.price || 0
-            }));
-        }
+        setUpdateData(prev => ({
+            ...prev,
+            buyingPrice: product.buyingPrice || '',
+            wholeSellPrice: product.wholeSellPrice || '',
+            price: product.price || ''
+        }));
+    };
+
+    const handleSearchChange = (e) => {
+        setSearchTerm(e.target.value);
+        setIsDropdownOpen(true);
+        setSelectedProduct(''); // Clear selection when searching
+    };
+
+    const handleInputFocus = () => {
+        setIsDropdownOpen(true);
+    };
+
+    const handleInputBlur = () => {
+        // Delay hiding dropdown to allow click event to register
+        setTimeout(() => {
+            setIsDropdownOpen(false);
+        }, 200);
     };
 
     const handleUpdateChange = (e) => {
         const { name, value } = e.target;
         setUpdateData(prev => ({
             ...prev,
-            [name]: parseFloat(value) || 0
+            [name]: value === '' ? '' : (parseFloat(value) || 0)
         }));
     };
 
@@ -67,7 +86,7 @@ const StockModal = ({
         const { name, value } = e.target;
         setAddData(prev => ({
             ...prev,
-            [name]: name === 'shortName' ? value : (parseFloat(value) || 0)
+            [name]: name === 'shortName' ? value : (value === '' ? '' : (parseFloat(value) || 0))
         }));
     };
 
@@ -144,6 +163,38 @@ const StockModal = ({
         marginTop: '10px'
     };
 
+    const dropdownStyle = {
+        position: 'relative'
+    };
+
+    const resultsContainerStyle = {
+        position: 'absolute',
+        zIndex: 100,
+        width: '100%',
+        maxHeight: '200px',
+        overflowY: 'auto',
+        border: '1px solid #ddd',
+        backgroundColor: 'white',
+        boxShadow: '0px 4px 8px rgba(0,0,0,0.1)',
+        marginTop: '-10px'
+    };
+
+    const resultItemStyle = {
+        padding: '8px',
+        cursor: 'pointer',
+        borderBottom: '1px solid #eee'
+    };
+
+    const highlightedResultStyle = {
+        ...resultItemStyle,
+        backgroundColor: '#f0f0f0'
+    };
+
+    // Filter products based on search term
+    const filteredProducts = products.filter(product =>
+        (product.shortName || product.name).toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
     return (
         <Modal
             isOpen={isOpen}
@@ -172,19 +223,37 @@ const StockModal = ({
                     <form onSubmit={onUpdateSubmit}>
                         <div style={{ marginBottom: '15px' }}>
                             <label style={labelStyle}>Select Product</label>
-                            <select
-                                style={inputStyle}
-                                value={selectedProduct}
-                                onChange={handleProductSelect}
-                                required
-                            >
-                                <option value="">Select a product...</option>
-                                {products.map(p => (
-                                    <option key={p._id} value={p._id}>
-                                        {p.shortName}
-                                    </option>
-                                ))}
-                            </select>
+                            <div style={dropdownStyle}>
+                                <input
+                                    type="text"
+                                    style={inputStyle}
+                                    value={searchTerm}
+                                    onChange={handleSearchChange}
+                                    onFocus={handleInputFocus}
+                                    onBlur={handleInputBlur}
+                                    placeholder="Search product by name..."
+                                    required={!selectedProduct} // Required if no product selected
+                                />
+                                {isDropdownOpen && searchTerm && (
+                                    <div style={resultsContainerStyle}>
+                                        {filteredProducts.length > 0 ? (
+                                            filteredProducts.map(product => (
+                                                <div
+                                                    key={product._id}
+                                                    style={resultItemStyle}
+                                                    onMouseDown={() => handleProductSelect(product)} // Use onMouseDown to trigger before onBlur
+                                                >
+                                                    {product.shortName || product.name}
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div style={{ ...resultItemStyle, cursor: 'default', color: '#999' }}>
+                                                No products found
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div style={{ display: 'flex', gap: '15px' }}>

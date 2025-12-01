@@ -12,9 +12,27 @@ const { ROLES } = require('../../constants');
 // @access Private
 router.get('/', auth, async (req, res) => {
   try {
-    const invoices = await Invoice.find()
+    const { startDate, endDate } = req.query;
+    const query = {};
+
+    if (startDate && endDate) {
+      console.log('Filtering invoices from', startDate, 'to', endDate);
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+
+      console.log('Query range:', start, 'to', end);
+
+      query.created = {
+        $gte: start,
+        $lte: end
+      };
+    }
+
+    const invoices = await Invoice.find(query)
       .populate('customer', 'name phoneNumber')
-      .populate('createdBy', 'firstName lastName')
       .sort({ created: -1 });
 
     res.status(200).json({
@@ -62,8 +80,7 @@ router.get('/number/:invoiceNumber', auth, async (req, res) => {
     const invoiceNumber = req.params.invoiceNumber;
 
     const invoice = await Invoice.findOne({ invoiceNumber })
-      .populate('customer', 'name phoneNumber due')
-      .populate('createdBy', 'firstName lastName');
+      .populate('customer', 'name phoneNumber due');
 
     if (!invoice) {
       return res.status(404).json({
@@ -310,7 +327,6 @@ router.get('/customer/:customerId', auth, async (req, res) => {
     const customerId = req.params.customerId;
 
     const invoices = await Invoice.find({ customer: customerId })
-      .populate('createdBy', 'firstName lastName')
       .sort({ created: -1 });
 
     res.status(200).json({

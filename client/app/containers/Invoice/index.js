@@ -6,6 +6,7 @@ import axios from 'axios'; // Import axios for API calls
 import LoadingIndicator from '../../components/Common/LoadingIndicator';
 import NotFound from '../../components/Common/NotFound';
 import StockModal from '../../components/Manager/StockModal';
+import InvoiceListModal from '../../components/Manager/InvoiceListModal';
 
 // Invoice Container Component
 class Invoice extends React.PureComponent {
@@ -48,7 +49,8 @@ class Invoice extends React.PureComponent {
     focusedCustomerSearch: false,
     filteredCustomers: [],
     selectedCustomerIndex: 0,
-    isStockModalOpen: false // State for Stock Modal
+    isStockModalOpen: false, // State for Stock Modal
+    isInvoiceListModalOpen: false // State for Invoice List Modal
   };
 
   // Fetch products once component mounts
@@ -1408,8 +1410,23 @@ class Invoice extends React.PureComponent {
       focusedCustomerSearch: false,
       filteredCustomers: [],
       selectedCustomerIndex: 0,
-      isStockModalOpen: false // Reset stock modal state
+      isStockModalOpen: false, // Reset stock modal state
+      isInvoiceListModalOpen: false // Reset invoice list modal state
     });
+  };
+
+  // Invoice List Modal Handlers
+  handleOpenInvoiceListModal = () => {
+    this.setState({ isInvoiceListModalOpen: true });
+  };
+
+  handleCloseInvoiceListModal = () => {
+    this.setState({ isInvoiceListModalOpen: false });
+  };
+
+  handleSelectInvoiceFromList = (invoiceNumber) => {
+    this.setState({ isInvoiceListModalOpen: false });
+    this.fetchAndLoadInvoice(invoiceNumber);
   };
 
   handleWholesaleToggle = () => {
@@ -2082,6 +2099,25 @@ class Invoice extends React.PureComponent {
                       backgroundColor: '#f8f9fa',
                       border: '1px solid #ddd',
                       color: '#333',
+                      padding: '10px',
+                      borderRadius: '5px',
+                      cursor: 'pointer',
+                      fontSize: '18px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '45px'
+                    }}
+                    onClick={this.handleOpenInvoiceListModal}
+                    title="Show Invoices"
+                  >
+                    <i className="fa fa-list" aria-hidden="true"></i>
+                  </button>
+                  <button
+                    style={{
+                      backgroundColor: '#f8f9fa',
+                      border: '1px solid #ddd',
+                      color: '#333',
                       padding: '10px 20px',
                       borderRadius: '5px',
                       cursor: 'pointer',
@@ -2118,10 +2154,11 @@ class Invoice extends React.PureComponent {
                 </div>
               </div>
             </div>
-          </div>
+          </div >
         ) : (
           <NotFound message='No products found.' />
-        )}
+        )
+        }
         {/* Stock Management Modal */}
         <StockModal
           isOpen={this.state.isStockModalOpen}
@@ -2129,6 +2166,12 @@ class Invoice extends React.PureComponent {
           products={products}
           handleUpdateStock={this.handleStockUpdate}
           handleAddStock={this.handleStockAdd}
+        />
+        {/* Invoice List Modal */}
+        <InvoiceListModal
+          isOpen={this.state.isInvoiceListModalOpen}
+          onRequestClose={this.handleCloseInvoiceListModal}
+          onSelectInvoice={this.handleSelectInvoiceFromList}
         />
       </>
     );
