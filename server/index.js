@@ -22,7 +22,15 @@ app.use(
     frameguard: true
   })
 );
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:8080',
+    'http://localhost:3000',
+    'https://alphaaccessoriesbd.com',
+    'https://www.alphaaccessoriesbd.com'
+  ],
+  credentials: true
+}));
 
 setupDB();
 require('./config/passport')(app);

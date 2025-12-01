@@ -1,18 +1,203 @@
-# dependencies
-node_modules
-
-# production
-build
-dist
-  
-# misc
-package.json.bak
-.DS_Store
-
-# config file
-#.env
-
-# debug
+# ====================================
+# Dependencies & Node Modules
+# ====================================
+node_modules/
+*/node_modules/
+client/node_modules/
+server/node_modules/
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log* 
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# ====================================
+# Environment Variables & Configuration
+# ====================================
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+client/.env
+client/.env.local
+client/.env.development.local
+client/.env.test.local
+client/.env.production.local
+server/.env
+server/.env.local
+server/.env.development.local
+server/.env.test.local
+server/.env.production.local
+
+# ====================================
+# Build & Production Files
+# ====================================
+build/
+dist/
+*/build/
+*/dist/
+client/build/
+client/dist/
+server/build/
+server/dist/
+out/
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# ====================================
+# Dependency Lock Files (Choose one)
+# ====================================
+# Uncomment the lock file you want to ignore
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# ====================================
+# Testing & Coverage
+# ====================================
+coverage/
+.nyc_output
+*.lcov
+.cache
+.parcel-cache
+
+# ====================================
+# IDE & Editor Files
+# ====================================
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# ====================================
+# OS Generated Files
+# ====================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ====================================
+# Docker
+# ====================================
+docker-compose.override.yml
+*.env.docker
+
+# ====================================
+# MongoDB
+# ====================================
+mongodb-data/
+dump/
+*.bson
+
+# ====================================
+# Logs
+# ====================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+pids/
+*.pid
+*.seed
+lib-cov
+
+# ====================================
+# Temporary Files
+# ====================================
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.swp
+*~.nib
+package.json.bak
+
+# ====================================
+# Webpack & Bundler Cache
+# ====================================
+.webpack/
+.cache/
+.parcel-cache/
+
+# ====================================
+# PM2 & Process Managers
+# ====================================
+.pm2/
+ecosystem.config.js.backup
+
+# ====================================
+# SSL & Certificates (if local)
+# ====================================
+*.pem
+*.key
+*.cert
+*.crt
+*.csr
+
+# ====================================
+# Vercel & Deployment
+# ====================================
+.vercel
+.next/
+.turbo
+
+# ====================================
+# MacOS
+# ====================================
+.AppleDouble
+.LSOverride
+
+# ====================================
+# Windows
+# ====================================
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# ====================================
+# Linux
+# ====================================
+*~
+
+# ====================================
+# Application Specific
+# ====================================
+uploads/
+public/uploads/
+server/uploads/
+
+# ====================================
+# Misc
+# ====================================
+.eslintcache
+*.tsbuildinfo
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.* 
