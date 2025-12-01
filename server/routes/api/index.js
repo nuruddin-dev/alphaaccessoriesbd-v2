@@ -73,4 +73,8 @@ router.use('/wishlist', wishlistRoutes);
 // Sitemap route
 router.use('/', sitemapRoutes);
 
+// Dashboard routes
+const dashboardRoutes = require('./dashboard');
+router.use('/dashboard', dashboardRoutes);
+
 module.exports = router;

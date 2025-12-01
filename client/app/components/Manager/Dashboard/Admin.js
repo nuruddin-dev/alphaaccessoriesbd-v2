@@ -27,6 +27,7 @@ import Review from '../../../containers/Review';
 import Wishlist from '../../../containers/WishList';
 import Invoice from '../../../containers/Invoice';
 import Customer from '../../../containers/Customer';
+import MyShop from '../../../containers/MyShop';
 
 const Admin = props => {
   const location = useLocation();
@@ -53,6 +54,7 @@ const Admin = props => {
             <Switch>
               <Route exact path='/dashboard' component={Account} />
               <Route path='/dashboard/invoice' component={Invoice} />
+              <Route path='/dashboard/myshop' component={MyShop} />
               <Route path='/dashboard/customer' component={Customer} />
               <Route path='/dashboard/security' component={AccountSecurity} />
               <Route path='/dashboard/address' component={Address} />
