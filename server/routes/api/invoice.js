@@ -136,6 +136,21 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
         .json({ error: 'This invoice number already exists.' });
     }
 
+    // Enrich items with buyingPrice from the database
+    const enrichedItems = await Promise.all(items.map(async (item) => {
+      let buyingPrice = 0;
+      if (item.product) {
+        const productDoc = await Product.findById(item.product);
+        if (productDoc) {
+          buyingPrice = productDoc.buyingPrice || 0;
+        }
+      }
+      return {
+        ...item,
+        buyingPrice
+      };
+    }));
+
     // Create new invoice
     const invoice = new Invoice({
       invoiceNumber,
@@ -143,7 +158,7 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
       customer,
       customerName,
       customerPhone,
-      items,
+      items: enrichedItems,
       subTotal,
       previousDue: previousDue || 0,
       discount: discount || 0,
@@ -234,6 +249,30 @@ router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
     // Get the previous customer to update their data
     const previousCustomerId = existingInvoice.customer;
     const newCustomerId = update.customer;
+
+    // Enrich items with buyingPrice logic
+    if (update.items && update.items.length > 0) {
+      const enrichedItems = await Promise.all(update.items.map(async (item) => {
+        // If item has a valid buying price (snapshot exists), keep it.
+        if (item.buyingPrice && item.buyingPrice > 0) {
+          return item;
+        }
+
+        // If buyingPrice is 0 or missing (old invoice or new item), fetch current price.
+        let buyingPrice = 0;
+        if (item.product) {
+          const productDoc = await Product.findById(item.product);
+          if (productDoc) {
+            buyingPrice = productDoc.buyingPrice || 0;
+          }
+        }
+        return {
+          ...item,
+          buyingPrice
+        };
+      }));
+      update.items = enrichedItems;
+    }
 
     // Update the invoice
     const updatedInvoice = await Invoice.findByIdAndUpdate(invoiceId, update, {

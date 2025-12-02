@@ -180,24 +180,48 @@ const CustomerTable = ({ customers, history }) => {
             {loadingHistory ? (
               <p>Loading...</p>
             ) : (
-              <ul>
-                {invoiceDetails.map((item, index) => (
-                  <li key={index}>
-                    <strong>Invoice:</strong>{' '}
-                    {item.invoice.invoiceNumber ? (
-                      <Link to={`/dashboard/invoice/${item.invoice.invoiceNumber}`}>
-                        {item.invoice.invoiceNumber}
-                      </Link>
-                    ) : (
-                      'N/A'
-                    )},{' '}
-                    <strong>Date:</strong>{' '}
-                    {item.invoice.created
-                      ? formatDateTime(item.invoice.created)
-                      : 'Invalid Date'}
-                  </li>
-                ))}
-              </ul>
+              <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                <table className='table table-striped'>
+                  <thead>
+                    <tr>
+                      <th>Invoice #</th>
+                      <th>Today's Total</th>
+                      <th>Previous Due</th>
+                      <th>Total</th>
+                      <th>Paid</th>
+                      <th>Due</th>
+                      <th>Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invoiceDetails.map((item, index) => (
+                      <tr key={index}>
+                        <td>
+                          {item.invoice.invoiceNumber ? (
+                            <Link to={`/dashboard/invoice/${item.invoice.invoiceNumber}`}>
+                              {item.invoice.invoiceNumber}
+                            </Link>
+                          ) : (
+                            'N/A'
+                          )}
+                        </td>
+                        <td>৳{item.invoice.subTotal || 0}</td>
+                        <td>৳{item.invoice.previousDue || 0}</td>
+                        <td>৳{item.invoice.grandTotal || 0}</td>
+                        <td>৳{item.invoice.paid || 0}</td>
+                        <td style={{ color: item.invoice.due > 0 ? 'red' : 'green' }}>
+                          ৳{item.invoice.due || 0}
+                        </td>
+                        <td>
+                          {item.invoice.created
+                            ? formatDateTime(item.invoice.created)
+                            : 'Invalid Date'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
             <button
               className='btn btn-secondary'
@@ -224,11 +248,15 @@ const formatDateTime = isoString => {
   const year = date.getFullYear();
 
   // Extract time components
-  const hours = String(date.getHours()).padStart(2, '0');
+  let hours = date.getHours();
   const minutes = String(date.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12; // the hour '0' should be '12'
+  const strHours = String(hours).padStart(2, '0');
 
   // Combine into the desired format
-  return `${day}-${month}-${year} ${hours}:${minutes}`;
+  return `${day}-${month}-${year} ${strHours}:${minutes} ${ampm}`;
 };
 
 export default CustomerTable;

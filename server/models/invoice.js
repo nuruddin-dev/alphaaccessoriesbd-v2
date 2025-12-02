@@ -24,6 +24,10 @@ const InvoiceSchema = new Schema({
   },
   items: [
     {
+      product: {
+        type: Schema.Types.ObjectId,
+        ref: 'Product'
+      },
       productName: {
         type: String,
         required: true
@@ -37,6 +41,10 @@ const InvoiceSchema = new Schema({
         type: Number,
         required: true,
         min: 0
+      },
+      buyingPrice: {
+        type: Number,
+        default: 0
       },
       totalPrice: {
         type: Number,

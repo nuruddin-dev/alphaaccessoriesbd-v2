@@ -31,10 +31,12 @@ const ProductList = props => {
   const sortedProducts = [...products].sort((a, b) => {
     const { key, direction } = sortConfig;
 
-    if (key === 'name') {
-      if (a[key].toLowerCase() < b[key].toLowerCase())
+    if (key === 'name' || key === 'shortName') {
+      const aValue = (a[key] || '').toLowerCase();
+      const bValue = (b[key] || '').toLowerCase();
+      if (aValue < bValue)
         return direction === 'asc' ? -1 : 1;
-      if (a[key].toLowerCase() > b[key].toLowerCase())
+      if (aValue > bValue)
         return direction === 'asc' ? 1 : -1;
       return 0;
     } else if (
@@ -83,9 +85,9 @@ const ProductList = props => {
             <th
               scope='col'
               style={{ width: '25%', cursor: 'pointer' }}
-              onClick={() => handleSort('name')}
+              onClick={() => handleSort('shortName')}
             >
-              Name {getSortSymbol('name')}
+              Name {getSortSymbol('shortName')}
             </th>
             <th
               scope='col'

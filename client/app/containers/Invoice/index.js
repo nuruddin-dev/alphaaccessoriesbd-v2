@@ -30,6 +30,7 @@ class Invoice extends React.PureComponent {
     invoiceInfo: {
       number: `${Date.now()}`, // Use current milliseconds for the invoice number
       date: new Date().toISOString().split('T')[0],
+      created: new Date().toISOString(), // Initialize with current time
       createdBy: 'Admin' // Default created by
     },
     visibleItems: 10,
@@ -204,6 +205,7 @@ class Invoice extends React.PureComponent {
           invoiceInfo: {
             number: invoice.invoiceNumber,
             date: new Date(invoice.created).toISOString().split('T')[0],
+            created: invoice.created, // Store full timestamp
             createdBy: invoice.createdBy || 'Admin'
           },
           previousDue: invoice.previousDue || 0,
@@ -398,6 +400,7 @@ class Invoice extends React.PureComponent {
         productName: item.product.shortName || item.product.name,
         quantity: item.quantity || 1,
         unitPrice: item.unitPrice || 0,
+        buyingPrice: item.buyingPrice || (item.product ? item.product.buyingPrice : 0) || 0,
         totalPrice: item.totalPrice || 0
       }));
 
@@ -588,11 +591,38 @@ class Invoice extends React.PureComponent {
       paid,
       paymentMethod
     } = this.state;
+
+    // Helper for date formatting
+    const formatDateForPrint = (dateString, createdString) => {
+      // Fallback to just date
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-GB');
+    };
+
     const grandTotal = this.calculateGrandTotal();
     const due = this.calculateRemainingDue();
 
     // Filter out rows without products
     const filledInvoiceItems = invoiceItems.filter(item => item.product);
+
+    // Calculate totals section size
+    let totalsRowCount = 0;
+    if (discount > 0) totalsRowCount += 2;
+    if (previousDue > 0) totalsRowCount += 2;
+    if (due > 0) totalsRowCount += 1;
+
+    const MAX_ROWS_PER_PAGE = 20; // Reduced slightly to accommodate larger margins
+    const itemsOnLastPage = filledInvoiceItems.length % MAX_ROWS_PER_PAGE;
+    const availableSpace = MAX_ROWS_PER_PAGE - itemsOnLastPage;
+
+    let emptyRowsCount;
+    if (availableSpace >= totalsRowCount) {
+      // Enough space to fit totals on this page, push them to bottom
+      emptyRowsCount = availableSpace - totalsRowCount;
+    } else {
+      // Not enough space, fill the page to force totals to next page
+      emptyRowsCount = availableSpace;
+    }
 
     // Create rows HTML
     const rowsHtml = filledInvoiceItems
@@ -610,7 +640,6 @@ class Invoice extends React.PureComponent {
       .join('');
 
     // Create empty rows to match the template (20 rows total)
-    const emptyRowsCount = Math.max(0, 19 - filledInvoiceItems.length);
     const emptyRowsHtml = Array(emptyRowsCount)
       .fill(
         `
@@ -727,7 +756,7 @@ class Invoice extends React.PureComponent {
                 th, td {
                   padding: 0px 5px;
                   text-align: center;
-                  border: 1px solid #ccc;
+                  border: 1px solid #000; /* Darker border */
                 }
                 tr {
                   height: 25px;
@@ -759,7 +788,7 @@ class Invoice extends React.PureComponent {
                 }
                 .total-cell {
                   text-align: right;
-                  border: 1px solid #ccc;
+                  border: 1px solid #000; /* Darker border */
                 }
                 .totals-section {
                   page-break-inside: avoid;
@@ -767,14 +796,14 @@ class Invoice extends React.PureComponent {
                 @media print {
                   body {
                     padding: 0;
-                    margin: 5%;
+                    margin: 0;
                   }
                   button {
                     display: none;
                   }
                   @page {
                     size: auto;
-                    margin: 10mm;
+                    margin: 20mm; /* Proper margin */
                   }
                   
                   /* Make the table header repeat on each page */
@@ -819,7 +848,7 @@ class Invoice extends React.PureComponent {
                       <p><strong>Invoice No.:</strong> ${invoiceInfo.number}<br>
                       <strong>Created by:</strong> ${invoiceInfo.createdBy || 'Admin'
       }<br>
-                      <strong>Date:</strong> ${new Date(invoiceInfo.date).toLocaleDateString('en-GB')}<br>>
+                      <strong>Date:</strong> ${formatDateForPrint(invoiceInfo.date, invoiceInfo.created)}<br>
                       <strong></strong> ${customerInfo.name}<br>
                       <strong></strong> ${customerInfo.phone}</p>
                     </div>
@@ -1392,6 +1421,7 @@ class Invoice extends React.PureComponent {
       invoiceInfo: {
         number: `${Date.now()}`, // Use current milliseconds for the invoice number
         date: new Date().toISOString().split('T')[0],
+        created: new Date().toISOString(), // Initialize with current time
         createdBy: this.props.user.firstName || 'Admin' // Default created by
       },
       visibleItems: 10,
@@ -1460,6 +1490,13 @@ class Invoice extends React.PureComponent {
 
   handleNotesChange = value => {
     this.setState({ notes: value });
+  };
+
+  handleSaveInvoice = async () => {
+    const success = await this.saveInvoiceToDatabase();
+    if (success) {
+      alert('Invoice saved successfully!');
+    }
   };
 
   render() {
@@ -2090,66 +2127,86 @@ class Invoice extends React.PureComponent {
                   style={{
                     display: 'flex',
                     justifyContent: 'flex-end', // Align buttons to the right
-                    gap: '15px', // Add spacing between the buttons
+                    gap: '10px', // Add spacing between the buttons
                     marginBottom: '20px' // Add spacing below the buttons
                   }}
                 >
                   <button
                     style={{
-                      backgroundColor: '#f8f9fa',
-                      border: '1px solid #ddd',
-                      color: '#333',
-                      padding: '10px',
+                      backgroundColor: '#6c757d', // Grey for List
+                      border: 'none',
+                      color: 'white',
+                      padding: '10px 15px',
                       borderRadius: '5px',
                       cursor: 'pointer',
-                      fontSize: '18px',
+                      fontSize: '14px',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '45px'
+                      gap: '5px',
+                      fontWeight: '500'
                     }}
                     onClick={this.handleOpenInvoiceListModal}
                     title="Show Invoices"
                   >
                     <i className="fa fa-list" aria-hidden="true"></i>
+                    List
                   </button>
                   <button
                     style={{
-                      backgroundColor: '#f8f9fa',
-                      border: '1px solid #ddd',
-                      color: '#333',
-                      padding: '10px 20px',
+                      backgroundColor: '#28a745', // Green for Save
+                      border: 'none',
+                      color: 'white',
+                      padding: '10px 15px',
                       borderRadius: '5px',
                       cursor: 'pointer',
                       fontSize: '14px',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '8px',
+                      gap: '5px',
+                      fontWeight: '500'
+                    }}
+                    onClick={this.handleSaveInvoice}
+                  >
+                    <i className="fa fa-save" aria-hidden="true"></i>
+                    Save
+                  </button>
+                  <button
+                    style={{
+                      backgroundColor: '#17a2b8', // Teal for New
+                      border: 'none',
+                      color: 'white',
+                      padding: '10px 15px',
+                      borderRadius: '5px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
                       fontWeight: '500'
                     }}
                     onClick={this.handleNewInvoice}
                   >
-                    <i className="fa fa-file" aria-hidden="true"></i>
-                    New Invoice
+                    <i className="fa fa-plus" aria-hidden="true"></i>
+                    New
                   </button>
                   <button
                     style={{
-                      backgroundColor: '#f8f9fa',
-                      border: '1px solid #ddd',
-                      color: '#333',
-                      padding: '10px 20px',
+                      backgroundColor: '#007bff', // Blue for Print
+                      border: 'none',
+                      color: 'white',
+                      padding: '10px 15px',
                       borderRadius: '5px',
                       cursor: 'pointer',
                       fontSize: '14px',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '8px',
+                      gap: '5px',
                       fontWeight: '500'
                     }}
                     onClick={this.handlePrintInvoice}
                   >
                     <i className="fa fa-print" aria-hidden="true"></i>
-                    Print Invoice
+                    Print
                   </button>
                 </div>
               </div>

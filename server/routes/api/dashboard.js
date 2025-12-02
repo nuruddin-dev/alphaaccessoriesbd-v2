@@ -53,8 +53,13 @@ router.get('/myshop', auth, role.check(ROLES.Admin), async (req, res) => {
             let hasZeroBuyingPrice = false;
 
             invoice.items.forEach(item => {
-                const productName = item.productName.trim().toLowerCase();
-                const buyingPrice = productMap[productName];
+                let buyingPrice = item.buyingPrice;
+
+                // Fallback for old invoices or if buyingPrice wasn't saved
+                if (buyingPrice === undefined || buyingPrice === null) {
+                    const productName = item.productName.trim().toLowerCase();
+                    buyingPrice = productMap[productName];
+                }
 
                 if (buyingPrice === undefined) {
                     hasMissingBuyingPrice = true;
