@@ -1,99 +1,581 @@
-body {
-  font-family: Arial, sans-serif;
-  margin: 20px;
-  padding: 0;
-  background-color: #f9f9f9;
+/* Invoice Container - Minimal Light Theme */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+.invoice-container {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  max-width: 100%;
+  margin: 0;
+  padding: 8px 12px;
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+  overflow: visible;
+  min-height: calc(100vh - 40px);
 }
 
-h1 {
-  color: #333;
+/* Invoice Layout - Two Column */
+.invoice-layout {
+  display: flex;
+  gap: 16px;
+  height: 100%;
+}
+
+.invoice-table-container {
+  flex: 7;
+  display: flex;
+  flex-direction: column;
+}
+
+.invoice-info-container {
+  flex: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: sticky;
+  top: 10px;
+  align-self: flex-start;
+  max-height: calc(100vh - 100px);
+}
+
+/* Table Styles */
+.invoice-table,
+.invoice-container table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.invoice-container thead tr {
+  background: #f1f5f9;
+}
+
+.invoice-container th {
+  padding: 12px 10px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #64748b;
+  border-bottom: 2px solid #e2e8f0;
+  background: #f1f5f9;
+}
+
+.invoice-container th:first-child {
+  border-radius: 10px 0 0 0;
+}
+
+.invoice-container th:last-child {
+  border-radius: 0 10px 0 0;
+}
+
+.invoice-container th:not(:first-child) {
   text-align: center;
 }
 
-.invoice-container {
-  max-width: 100%;
-  margin: 20px auto;
-  padding: 20px;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  overflow-x: auto;
+.invoice-container tbody tr {
+  transition: all 0.15s ease;
+}
 
-  .invoice-layout {
-    display: flex;
-    gap: 20px;
+.invoice-container tbody tr:hover {
+  background: #f8fafc;
+}
+
+.invoice-container td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+}
+
+.invoice-container td:not(:first-child) {
+  text-align: center;
+}
+
+/* Compact Input Styles */
+.invoice-container input,
+.invoice-container select {
+  width: 100%;
+  padding: 8px 10px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  color: #1e293b;
+  font-size: 13px;
+  transition: all 0.2s ease;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.invoice-container input:focus,
+.invoice-container select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.invoice-container input::placeholder {
+  color: #94a3b8;
+}
+
+.invoice-container input[readonly] {
+  background: #f8fafc;
+  color: #64748b;
+  border-color: #f1f5f9;
+}
+
+.invoice-container select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 8px center;
+  background-repeat: no-repeat;
+  background-size: 16px;
+  padding-right: 32px;
+}
+
+/* Compact Info Boxes */
+.invoice-container .info-box {
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1.5px solid #f1f5f9;
+  border-radius: 12px;
+}
+
+.invoice-container .info-row {
+  display: flex;
+  gap: 10px;
+}
+
+.invoice-container .info-row+.info-row {
+  margin-top: 8px;
+}
+
+.invoice-container .info-field {
+  flex: 1;
+}
+
+.invoice-container label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* Compact Checkbox Styling */
+.invoice-container .checkbox-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+.invoice-container .checkbox-wrapper input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+.invoice-container .checkbox-wrapper label {
+  margin: 0;
+  font-size: 13px;
+  color: #334155;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Footer Actions - Compact */
+.invoice-container .table-actions {
+  display: flex;
+  align-items: center;
+  margin-top: 10px;
+  gap: 8px;
+}
+
+.invoice-container .icon-btn {
+  background: #f1f5f9;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  color: #64748b;
+  padding: 10px 12px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.invoice-container .icon-btn:hover {
+  background: #e2e8f0;
+  color: #3b82f6;
+}
+
+.invoice-container .icon-btn.plus:hover {
+  color: #22c55e;
+}
+
+.invoice-container .notes-input {
+  flex: 1;
+}
+
+/* Compact Button Group */
+.invoice-container .button-group {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.invoice-container .btn {
+  padding: 10px 14px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.invoice-container .btn-list {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.invoice-container .btn-list:hover {
+  background: #e2e8f0;
+}
+
+.invoice-container .btn-save {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.invoice-container .btn-save:hover {
+  background: #bbf7d0;
+}
+
+.invoice-container .btn-new {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+.invoice-container .btn-new:hover {
+  background: #bae6fd;
+}
+
+.invoice-container .btn-print {
+  background: #3b82f6;
+  color: white;
+}
+
+.invoice-container .btn-print:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
+}
+
+/* Total Footer */
+.invoice-container tfoot tr {
+  background: #f8fafc;
+}
+
+.invoice-container tfoot td {
+  padding: 14px 10px;
+  font-weight: 700;
+  font-size: 14px;
+  border: none;
+  color: #1e293b;
+}
+
+/* Dropdown Results */
+.invoice-container .dropdown-results {
+  position: absolute;
+  z-index: 100;
+  width: 100%;
+  max-height: 180px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
+  margin-top: 2px;
+}
+
+.invoice-container .dropdown-item {
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 13px;
+}
+
+.invoice-container .dropdown-item:hover,
+.invoice-container .dropdown-item.highlighted {
+  background: #f1f5f9;
+  color: #3b82f6;
+}
+
+.invoice-container .dropdown-item:last-child {
+  border-bottom: none;
+}
+
+/* Scrollbar */
+.invoice-container ::-webkit-scrollbar {
+  width: 6px;
+}
+
+.invoice-container ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.invoice-container ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.invoice-container ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Remove number input spinners for cleaner look */
+.invoice-container input[type="number"]::-webkit-inner-spin-button,
+.invoice-container input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+.invoice-container input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* ========== RESPONSIVE STYLES ========== */
+
+/* Large screens - below 1400px */
+@media (max-width: 1400px) {
+  .invoice-container {
+    padding: 6px 10px;
   }
 
-  .invoice-table-container {
-    flex: 7; /* 70% width */
+  .invoice-layout {
+    gap: 14px;
+  }
+
+  .invoice-container input,
+  .invoice-container select {
+    padding: 7px 8px;
+    font-size: 12px;
+  }
+
+  .invoice-container th {
+    padding: 10px 8px;
+    font-size: 10px;
+  }
+
+  .invoice-container td {
+    padding: 5px 8px;
+  }
+
+  .invoice-container .info-box {
+    padding: 10px 12px;
+  }
+
+  .invoice-container label {
+    font-size: 10px;
+    margin-bottom: 3px;
+  }
+
+  .invoice-container .btn {
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+
+  .invoice-container .icon-btn {
+    padding: 8px 10px;
+    font-size: 14px;
+  }
+}
+
+/* Medium screens - below 1200px */
+@media (max-width: 1200px) {
+  .invoice-container {
+    padding: 5px 8px;
+  }
+
+  .invoice-layout {
+    gap: 12px;
   }
 
   .invoice-info-container {
-    flex: 3; /* 30% width */
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
+    gap: 8px;
+  }
+
+  .invoice-container input,
+  .invoice-container select {
+    padding: 6px 7px;
+    font-size: 11px;
+    border-radius: 6px;
+  }
+
+  .invoice-container th {
+    padding: 8px 6px;
+    font-size: 9px;
+    letter-spacing: 0.5px;
+  }
+
+  .invoice-container td {
+    padding: 4px 6px;
+    font-size: 12px;
+  }
+
+  .invoice-container .info-box {
+    padding: 8px 10px;
+    border-radius: 10px;
+  }
+
+  .invoice-container label {
+    font-size: 9px;
+    margin-bottom: 2px;
+  }
+
+  .invoice-container .checkbox-wrapper {
+    padding: 6px 10px;
+    gap: 6px;
+  }
+
+  .invoice-container .checkbox-wrapper input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+  }
+
+  .invoice-container .checkbox-wrapper label {
+    font-size: 11px;
+  }
+
+  .invoice-container .btn {
+    padding: 7px 10px;
+    font-size: 10px;
+    gap: 4px;
+  }
+
+  .invoice-container .icon-btn {
+    padding: 7px 9px;
+    font-size: 13px;
+  }
+
+  .invoice-container .button-group {
+    gap: 6px;
+  }
+
+  .invoice-container tfoot td {
+    padding: 10px 6px;
+    font-size: 13px;
   }
 }
 
-.product-list {
-  margin-bottom: 20px;
-}
+/* Smaller screens - below 1024px */
+@media (max-width: 1024px) {
+  .invoice-container {
+    padding: 4px 6px;
+    border-radius: 8px;
+  }
 
-.product-item {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
+  .invoice-layout {
+    gap: 10px;
+  }
 
-.product-item input {
-  width: 60px;
-  margin-left: 10px;
-}
+  .invoice-info-container {
+    gap: 6px;
+    flex: 3.5;
+  }
 
-.button-print {
-  display: block;
-  margin: 20px auto;
-  padding: 10px 20px;
-  background-color: #4caf50;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 16px;
-}
+  .invoice-table-container {
+    flex: 6.5;
+  }
 
-.button-print:hover {
-  background-color: #45a049;
-}
+  .invoice-container input,
+  .invoice-container select {
+    padding: 5px 6px;
+    font-size: 10px;
+    border-radius: 5px;
+  }
 
-.invoice-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed; /* Ensures fixed width for columns */
-}
+  .invoice-container th {
+    padding: 6px 4px;
+    font-size: 8px;
+    letter-spacing: 0.3px;
+  }
 
-.invoice-table th,
-.invoice-table td {
-  border: 1px solid #ddd;
-  padding: 8px;
-  text-align: center;
-  word-wrap: break-word; /* Prevents text overflow */
-}
+  .invoice-container td {
+    padding: 3px 4px;
+    font-size: 11px;
+  }
 
-.invoice-table th {
-  background-color: #f4f4f4;
-}
+  .invoice-container .info-box {
+    padding: 6px 8px;
+    border-radius: 8px;
+  }
 
-button {
-  margin-top: 20px;
-  padding: 10px 20px;
-  background-color: #007bff;
-  color: white;
-  border: none;
-  cursor: pointer;
-}
+  .invoice-container label {
+    font-size: 8px;
+    margin-bottom: 1px;
+  }
 
-button:hover {
-  background-color: #0056b3;
+  .invoice-container .checkbox-wrapper {
+    padding: 5px 8px;
+    gap: 5px;
+    margin-bottom: 6px;
+  }
+
+  .invoice-container .checkbox-wrapper input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+  }
+
+  .invoice-container .checkbox-wrapper label {
+    font-size: 10px;
+  }
+
+  .invoice-container .btn {
+    padding: 6px 8px;
+    font-size: 9px;
+    gap: 3px;
+    border-radius: 6px;
+  }
+
+  .invoice-container .icon-btn {
+    padding: 6px 8px;
+    font-size: 12px;
+    border-radius: 6px;
+  }
+
+  .invoice-container .button-group {
+    gap: 5px;
+  }
+
+  .invoice-container .table-actions {
+    gap: 5px;
+    margin-top: 6px;
+  }
+
+  .invoice-container tfoot td {
+    padding: 8px 4px;
+    font-size: 12px;
+  }
+
+  .invoice-container .dropdown-item {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
 }

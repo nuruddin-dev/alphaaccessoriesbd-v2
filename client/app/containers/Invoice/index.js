@@ -7,6 +7,7 @@ import LoadingIndicator from '../../components/Common/LoadingIndicator';
 import NotFound from '../../components/Common/NotFound';
 import StockModal from '../../components/Manager/StockModal';
 import InvoiceListModal from '../../components/Manager/InvoiceListModal';
+import './styles.css'; // Import Minimal Light theme styles
 
 // Invoice Container Component
 class Invoice extends React.PureComponent {
@@ -51,15 +52,17 @@ class Invoice extends React.PureComponent {
     filteredCustomers: [],
     selectedCustomerIndex: 0,
     isStockModalOpen: false, // State for Stock Modal
-    isInvoiceListModalOpen: false // State for Invoice List Modal
+    isInvoiceListModalOpen: false, // State for Invoice List Modal
+    isLoadingProducts: false // Track if products are being loaded
   };
 
   // Fetch products once component mounts
   async componentDidMount() {
     this._isMounted = true;
 
-    // Wait for products to load first
-    await this.props.fetchProducts();
+    // Don't fetch all products on mount - too slow!
+    // Products will be loaded lazily when searching
+    this.props.fetchProducts();
 
     if (this._isMounted && this.props.user && this.props.user.firstName) {
       this.setState(prevState => ({
@@ -70,7 +73,7 @@ class Invoice extends React.PureComponent {
       }));
     }
 
-    // NEW: Check for invoice number in URL (after products are loaded)
+    // Check for invoice number in URL
     if (this._isMounted) {
       this.loadInvoiceFromURL();
     }
@@ -180,15 +183,13 @@ class Invoice extends React.PureComponent {
         this.setState({
           invoiceItems: [
             ...invoice.items.map(item => {
-              const selectedProduct = this.props.products.find(
-                product => (product.shortName || product.name) === item.productName
-              );
-
               return {
-                product: selectedProduct || null,
+                product: item.product || null,
+                productName: item.productName || (item.product ? item.product.shortName || item.product.name : ''),
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
-                totalPrice: item.totalPrice
+                totalPrice: item.totalPrice,
+                buyingPrice: item.buyingPrice || (item.product ? item.product.buyingPrice : 0)
               };
             }),
             ...Array(100 - invoice.items.length).fill({
@@ -198,6 +199,7 @@ class Invoice extends React.PureComponent {
               totalPrice: 0
             })
           ],
+          visibleItems: Math.max(10, invoice.items.length),
           customerInfo: {
             name: invoice.customerName || '',
             phone: invoice.customerPhone || ''
@@ -260,6 +262,8 @@ class Invoice extends React.PureComponent {
     invoiceItems[index] = {
       ...invoiceItems[index],
       product: selectedProduct || null,
+      productName: selectedProduct ? (selectedProduct.shortName || selectedProduct.name) : '',
+      buyingPrice: selectedProduct ? selectedProduct.buyingPrice : 0,
       unitPrice: this.state.isWholesale
         ? selectedProduct?.wholeSellPrice || 0
         : selectedProduct?.price || 0,
@@ -384,9 +388,9 @@ class Invoice extends React.PureComponent {
  */
   saveInvoiceToDatabase = async () => {
     try {
-      // Filter out empty rows
+      // Filter out empty rows (must have product OR productName)
       const filledInvoiceItems = this.state.invoiceItems.filter(
-        item => item.product
+        item => item.product || (item.productName && item.productName.trim() !== '')
       );
 
       if (filledInvoiceItems.length === 0) {
@@ -396,8 +400,8 @@ class Invoice extends React.PureComponent {
 
       // Format items for the API
       const items = filledInvoiceItems.map(item => ({
-        product: item.product._id,
-        productName: item.product.shortName || item.product.name,
+        product: item.product ? (item.product._id || item.product) : null,
+        productName: item.productName || (item.product ? item.product.shortName || item.product.name : ''),
         quantity: item.quantity || 1,
         unitPrice: item.unitPrice || 0,
         buyingPrice: item.buyingPrice || (item.product ? item.product.buyingPrice : 0) || 0,
@@ -603,33 +607,18 @@ class Invoice extends React.PureComponent {
     const due = this.calculateRemainingDue();
 
     // Filter out rows without products
-    const filledInvoiceItems = invoiceItems.filter(item => item.product);
+    const filledInvoiceItems = invoiceItems.filter(
+      item => item.product || (item.productName && item.productName.trim() !== '')
+    );
 
-    // Calculate totals section size
-    let totalsRowCount = 0;
-    if (discount > 0) totalsRowCount += 2;
-    if (previousDue > 0) totalsRowCount += 2;
-    if (due > 0) totalsRowCount += 1;
 
-    const MAX_ROWS_PER_PAGE = 20; // Reduced slightly to accommodate larger margins
-    const itemsOnLastPage = filledInvoiceItems.length % MAX_ROWS_PER_PAGE;
-    const availableSpace = MAX_ROWS_PER_PAGE - itemsOnLastPage;
-
-    let emptyRowsCount;
-    if (availableSpace >= totalsRowCount) {
-      // Enough space to fit totals on this page, push them to bottom
-      emptyRowsCount = availableSpace - totalsRowCount;
-    } else {
-      // Not enough space, fill the page to force totals to next page
-      emptyRowsCount = availableSpace;
-    }
 
     // Create rows HTML
     const rowsHtml = filledInvoiceItems
       .map(
         item => `
               <tr>
-                <td class="product-name-cell">${item.product ? item.product.shortName || item.product.name : ''
+                <td class="product-name-cell">${item.productName || (item.product ? item.product.shortName || item.product.name : '')
           }</td>
                 <td class="small-cell">${item.quantity}</td>
                 <td class="small-cell">${item.unitPrice}</td>
@@ -639,19 +628,7 @@ class Invoice extends React.PureComponent {
       )
       .join('');
 
-    // Create empty rows to match the template (20 rows total)
-    const emptyRowsHtml = Array(emptyRowsCount)
-      .fill(
-        `
-          <tr class="empty-row">
-            <td></td>
-            <td></td>
-            <td></td>
-            <td></td>
-          </tr>
-        `
-      )
-      .join('');
+
 
     const discountAndGrandTotalHtml =
       discount > 0
@@ -803,7 +780,7 @@ class Invoice extends React.PureComponent {
                   }
                   @page {
                     size: auto;
-                    margin: 20mm; /* Proper margin */
+                    margin: 10mm; /* Reduced margin */
                   }
                   
                   /* Make the table header repeat on each page */
@@ -866,7 +843,7 @@ class Invoice extends React.PureComponent {
                   </thead>
                   <tbody>
                     ${rowsHtml}
-                    ${emptyRowsHtml}
+
                     <!-- Totals section - will only appear at the end of the table -->
                     <tr class="totals-section totals-row">
                       <td class="notes-cell" style={{ textAlign: 'left', fontWeight: 'bold' }}>${this.state.notes
@@ -885,11 +862,25 @@ class Invoice extends React.PureComponent {
           `;
   };
 
-  handleSearchTermChange = e => {
+  handleSearchTermChange = async e => {
     this.setState({
       searchTerm: e.target.value,
       selectedProductIndex: 0 // Reset the selected product index
     });
+
+    // Lazy load products if not already loaded
+    if (this.props.products.length === 0 && !this.state.isLoadingProducts) {
+      console.log('Products not loaded yet, fetching...');
+      this.setState({ isLoadingProducts: true });
+      try {
+        await this.props.fetchProducts();
+        console.log('Products loaded successfully:', this.props.products.length);
+      } catch (error) {
+        console.error('Error loading products:', error);
+      } finally {
+        this.setState({ isLoadingProducts: false });
+      }
+    }
   };
 
   handleFocusProduct = index => {
@@ -900,23 +891,37 @@ class Invoice extends React.PureComponent {
     const invoiceItems = [...this.state.invoiceItems];
 
     // Clear the product data for the focused row
-    // invoiceItems[index] = {
-    //   ...invoiceItems[index],
-    //   product: null,
-    //   quantity: 1,
-    //   unitPrice: 0,
-    //   totalPrice: 0
-    // };
     invoiceItems[index] = {
       ...invoiceItems[index],
-      product: null
+      product: null,
+      productName: null, // Clear productName as well
+      quantity: '', // Clear quantity
+      unitPrice: '', // Clear unitPrice
+      totalPrice: 0, // Reset totalPrice
+      buyingPrice: 0 // Reset buyingPrice
     };
+    // The original line below is redundant after the above block
+    // invoiceItems[index] = {
+    //   ...invoiceItems[index],
+    //   product: null
+    // };
 
     this.setState({
       invoiceItems,
       searchTerm: '', // Clear the search term
       focusedRowIndex: index // Set the focused row index
     });
+  };
+
+  handleEditProduct = index => {
+    const item = this.state.invoiceItems[index];
+    if (item && item.product) {
+      this.setState({
+        focusedRowIndex: index,
+        searchTerm: item.product.shortName || item.product.name,
+        selectedProductIndex: 0
+      });
+    }
   };
 
   // handleBlurRow = () => {
@@ -1527,30 +1532,52 @@ class Invoice extends React.PureComponent {
           ? products
           : [];
 
-    // Styles
+    // Styles - Minimal Light Compact Theme
     const tableStyle = {
       width: '100%',
-      borderCollapse: 'collapse',
-      tableLayout: 'fixed' // Ensures fixed column widths
+      borderCollapse: 'separate',
+      borderSpacing: 0,
+      tableLayout: 'fixed',
+      fontSize: '13px'
     };
 
     const cellStyle = {
-      border: '1px solid #ddd',
-      padding: '8px',
-      textAlign: 'left'
+      padding: '6px 10px',
+      borderBottom: '1px solid #f1f5f9',
+      textAlign: 'left',
+      color: '#334155'
     };
 
     const productNameCellStyle = {
       ...cellStyle,
-      width: '55%' // 70% for the Product Name column
+      width: '45%'
     };
 
     const smallCellStyle = {
-      border: '1px solid #ddd',
-      padding: '8px',
-      textAlign: 'center', // Centers text horizontally
-      verticalAlign: 'middle', // Centers text vertically
-      width: '15%' // Adjust width as needed
+      padding: '6px 10px',
+      borderBottom: '1px solid #f1f5f9',
+      textAlign: 'center',
+      verticalAlign: 'middle',
+      width: '18%',
+      color: '#334155'
+    };
+
+    const headerCellStyle = {
+      padding: '12px 10px',
+      textAlign: 'left',
+      fontWeight: 600,
+      fontSize: '11px',
+      textTransform: 'uppercase',
+      letterSpacing: '0.8px',
+      color: '#64748b',
+      borderBottom: '2px solid #e2e8f0',
+      background: '#f1f5f9'
+    };
+
+    const headerSmallCellStyle = {
+      ...headerCellStyle,
+      textAlign: 'center',
+      width: '18%'
     };
 
     const dropdownStyle = {
@@ -1559,48 +1586,64 @@ class Invoice extends React.PureComponent {
 
     const searchBoxStyle = {
       width: '100%',
-      padding: '8px',
-      boxSizing: 'border-box'
+      padding: '8px 10px',
+      boxSizing: 'border-box',
+      border: '1.5px solid #e2e8f0',
+      borderRadius: '8px',
+      fontSize: '13px',
+      color: '#1e293b',
+      transition: 'all 0.2s ease'
     };
 
     const resultsContainerStyle = {
       position: 'absolute',
       zIndex: 100,
       width: '100%',
-      maxHeight: '200px',
+      maxHeight: '180px',
       overflowY: 'auto',
-      border: '1px solid #ddd',
+      border: '1.5px solid #e2e8f0',
+      borderRadius: '10px',
       backgroundColor: 'white',
-      boxShadow: '0px 4px 8px rgba(0,0,0,0.1)'
+      boxShadow: '0 10px 40px rgba(0,0,0,0.12)',
+      marginTop: '2px'
     };
 
     const resultItemStyle = {
-      padding: '8px',
+      padding: '10px 12px',
       cursor: 'pointer',
-      borderBottom: '1px solid #eee'
+      borderBottom: '1px solid #f1f5f9',
+      fontSize: '13px',
+      transition: 'all 0.15s ease'
     };
 
     const highlightedResultStyle = {
       ...resultItemStyle,
-      backgroundColor: '#f0f0f0'
+      backgroundColor: '#f1f5f9',
+      color: '#3b82f6'
     };
 
     const infoBoxStyle = {
-      padding: '15px',
-      border: '1px solid #ddd',
-      borderRadius: '4px'
+      padding: '12px 14px',
+      border: '1.5px solid #f1f5f9',
+      borderRadius: '12px',
+      background: '#ffffff'
     };
 
     const infoGridStyle = {
       display: 'grid',
       gridTemplateColumns: '1fr 1fr',
-      gap: '15px'
+      gap: '10px'
     };
 
     const inputStyle = {
       width: '100%',
-      padding: '8px',
-      boxSizing: 'border-box'
+      padding: '8px 10px',
+      boxSizing: 'border-box',
+      border: '1.5px solid #e2e8f0',
+      borderRadius: '8px',
+      fontSize: '13px',
+      color: '#1e293b',
+      transition: 'all 0.2s ease'
     };
 
     const buttonStyle = {
@@ -1656,21 +1699,24 @@ class Invoice extends React.PureComponent {
 
     const invoiceLayout = {
       display: 'flex',
-      gap: '20px'
+      gap: '16px'
     };
 
     const invoiceTableContainer = {
-      flex: 7
+      flex: 6.5,
+      display: 'flex',
+      flexDirection: 'column'
     };
 
     const invoiceInfoContainer = {
-      flex: 3,
+      flex: 3.5,
       display: 'flex',
       flexDirection: 'column',
-      gap: '20px',
-      position: 'sticky', // Makes the container sticky
-      top: '20px', // Distance from the top of the viewport
-      alignSelf: 'flex-start' // Ensures the sticky container aligns properly
+      gap: '8px',
+      position: 'sticky',
+      top: '5px',
+      alignSelf: 'flex-start',
+      maxHeight: 'calc(100vh - 50px)'
     };
 
     // Display only the visible items
@@ -1681,7 +1727,7 @@ class Invoice extends React.PureComponent {
       <>
         {isLoading ? (
           <LoadingIndicator inline />
-        ) : products.length > 0 ? (
+        ) : (
           <div className='invoice-container'>
             {/* Invoice Layout */}
             <div style={invoiceLayout}>
@@ -1710,12 +1756,20 @@ class Invoice extends React.PureComponent {
                               value={
                                 focusedRowIndex === index
                                   ? searchTerm
-                                  : item.product
-                                    ? item.product.shortName || item.product.name
-                                    : ''
+                                  : item.productName || (item.product ? item.product.shortName || item.product.name : '')
                               }
                               onChange={this.handleSearchTermChange}
-                              onFocus={() => this.handleFocusProduct(index)}
+                              onFocus={() => {
+                                if (!item.product) {
+                                  this.handleFocusProduct(index);
+                                }
+                              }}
+                              onDoubleClick={() => {
+                                if (item.product) {
+                                  this.handleEditProduct(index);
+                                }
+                              }}
+                              readOnly={!!item.product && focusedRowIndex !== index}
                               onBlur={this.handleBlurRow}
                               onKeyDown={e =>
                                 this.handleKeyDown(e, index, filteredProducts)
@@ -1753,7 +1807,11 @@ class Invoice extends React.PureComponent {
                             )} */}
                             {focusedRowIndex === index && (
                               <div style={resultsContainerStyle}>
-                                {filteredProducts.length > 0 ? (
+                                {this.state.isLoadingProducts ? (
+                                  <div style={resultItemStyle}>
+                                    Loading products...
+                                  </div>
+                                ) : filteredProducts.length > 0 ? (
                                   filteredProducts.map((product, i) => (
                                     <div
                                       key={product.sku}
@@ -1775,7 +1833,9 @@ class Invoice extends React.PureComponent {
                                   ))
                                 ) : (
                                   <div style={resultItemStyle}>
-                                    No products found
+                                    {products.length === 0
+                                      ? 'Type to search products...'
+                                      : 'No products found'}
                                   </div>
                                 )}
                               </div>
@@ -1843,18 +1903,20 @@ class Invoice extends React.PureComponent {
                     display: 'flex',
                     alignItems: 'center',
                     marginTop: '10px',
-                    gap: '15px'
+                    gap: '8px'
                   }}
                 >
                   {hasMoreItems && (
                     <button
                       style={{
-                        background: 'transparent',
+                        background: '#f1f5f9',
                         border: 'none',
                         cursor: 'pointer',
-                        fontSize: '24px',
-                        color: '#4a90e2',
-                        padding: '0 10px'
+                        fontSize: '16px',
+                        color: '#22c55e',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        transition: 'all 0.2s ease'
                       }}
                       onClick={this.showMoreItems}
                       title={`Show More (${visibleItems} of ${invoiceItems.length})`}
@@ -1866,12 +1928,14 @@ class Invoice extends React.PureComponent {
                   {/* Refresh Button */}
                   <button
                     style={{
-                      background: 'transparent',
+                      background: '#f1f5f9',
                       border: 'none',
                       cursor: 'pointer',
-                      fontSize: '20px',
-                      color: '#555',
-                      padding: '0 10px'
+                      fontSize: '15px',
+                      color: '#64748b',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      transition: 'all 0.2s ease'
                     }}
                     onClick={this.handleRefreshProducts}
                     title="Refresh product list"
@@ -1882,12 +1946,14 @@ class Invoice extends React.PureComponent {
                   {/* Stock Button */}
                   <button
                     style={{
-                      background: 'transparent',
+                      background: '#f1f5f9',
                       border: 'none',
                       cursor: 'pointer',
-                      fontSize: '20px',
-                      color: '#555',
-                      padding: '0 10px'
+                      fontSize: '15px',
+                      color: '#64748b',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      transition: 'all 0.2s ease'
                     }}
                     onClick={this.handleStock}
                     title="Stock"
@@ -1911,9 +1977,9 @@ class Invoice extends React.PureComponent {
               <div style={invoiceInfoContainer}>
                 <div style={infoBoxStyle}>
                   {/* Invoice Number and Payment Method */}
-                  <div style={{ display: 'flex', gap: '15px' }}>
+                  <div style={{ display: 'flex', gap: '10px' }}>
                     <div style={{ flex: 1 }}>
-                      <label>Invoice Number:</label>
+                      <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Invoice Number:</label>
                       <input
                         type='text'
                         style={inputStyle}
@@ -1925,7 +1991,7 @@ class Invoice extends React.PureComponent {
                       />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label>Payment Method:</label>
+                      <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Payment Method:</label>
                       <select
                         style={inputStyle}
                         value={this.state.paymentMethod}
@@ -1943,10 +2009,10 @@ class Invoice extends React.PureComponent {
 
                   {/* Date and Created By */}
                   <div
-                    style={{ display: 'flex', gap: '15px', marginTop: '10px' }}
+                    style={{ display: 'flex', gap: '10px', marginTop: '8px' }}
                   >
                     <div style={{ flex: 1 }}>
-                      <label>Date:</label>
+                      <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Date:</label>
                       <input
                         type='date'
                         style={inputStyle}
@@ -1957,12 +2023,12 @@ class Invoice extends React.PureComponent {
                       />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label>Created By:</label>
+                      <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Created By:</label>
                       <input
                         type='text'
-                        style={inputStyle}
+                        style={{ ...inputStyle, background: '#f8fafc', color: '#64748b', borderColor: '#f1f5f9' }}
                         value={invoiceInfo.createdBy}
-                        readOnly // Make this field read-only
+                        readOnly
                       />
                     </div>
                   </div>
@@ -1972,21 +2038,27 @@ class Invoice extends React.PureComponent {
                   <div
                     style={{
                       display: 'flex',
-                      alignItems: 'center'
+                      alignItems: 'center',
+                      gap: '8px',
+                      marginBottom: '10px',
+                      padding: '8px 12px',
+                      background: '#f8fafc',
+                      borderRadius: '8px'
                     }}
                   >
-                    <label style={{ marginRight: '10px' }}>
-                      Wholesale Customer:
-                    </label>
                     <input
                       type='checkbox'
-                      checked={this.state.isWholesale} // Bind to state
-                      onChange={this.handleWholesaleToggle} // Handle toggle
+                      style={{ width: '18px', height: '18px', accentColor: '#3b82f6' }}
+                      checked={this.state.isWholesale}
+                      onChange={this.handleWholesaleToggle}
                     />
+                    <label style={{ margin: 0, fontSize: '13px', color: '#334155', fontWeight: 500 }}>
+                      Wholesale Customer
+                    </label>
                   </div>
                   {/* NEW CUSTOMER NAME INPUT WITH SEARCH DROPDOWN */}
                   <div style={dropdownStyle}>
-                    <label>Name:</label>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Name:</label>
                     <input
                       type='text'
                       style={inputStyle}
@@ -2017,8 +2089,8 @@ class Invoice extends React.PureComponent {
                       </div>
                     )}
                   </div>
-                  <div>
-                    <label>Phone:</label>
+                  <div style={{ marginTop: '8px' }}>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Phone:</label>
                     <input
                       type='text'
                       style={inputStyle}
@@ -2035,18 +2107,18 @@ class Invoice extends React.PureComponent {
                 {/* Summary Section */}
                 <div style={infoBoxStyle}>
                   {/* First Row: Subtotal and Previous Due */}
-                  <div style={{ display: 'flex', gap: '15px' }}>
+                  <div style={{ display: 'flex', gap: '10px' }}>
                     <div style={{ flex: 1 }}>
-                      <label>Subtotal:</label>
+                      <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Subtotal:</label>
                       <input
                         type='text'
-                        style={inputStyle}
+                        style={{ ...inputStyle, background: '#f8fafc', color: '#64748b', borderColor: '#f1f5f9' }}
                         value={this.calculateGrandTotal()}
                         readOnly
                       />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label>Previous Due:</label>
+                      <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Previous Due:</label>
                       <input
                         type='number'
                         min='0'
@@ -2064,19 +2136,19 @@ class Invoice extends React.PureComponent {
 
                   {/* Second Row: Grand Total and Discount */}
                   <div
-                    style={{ display: 'flex', gap: '15px', marginTop: '10px' }}
+                    style={{ display: 'flex', gap: '10px', marginTop: '8px' }}
                   >
                     <div style={{ flex: 1 }}>
-                      <label>Grand Total:</label>
+                      <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Grand Total:</label>
                       <input
                         type='text'
-                        style={inputStyle}
+                        style={{ ...inputStyle, background: '#f8fafc', color: '#64748b', borderColor: '#f1f5f9' }}
                         value={this.calculateFinalTotal()}
                         readOnly
                       />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label>Discount:</label>
+                      <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Discount:</label>
                       <input
                         type='number'
                         min='0'
@@ -2094,10 +2166,10 @@ class Invoice extends React.PureComponent {
 
                   {/* Third Row: Paid and Due */}
                   <div
-                    style={{ display: 'flex', gap: '15px', marginTop: '10px' }}
+                    style={{ display: 'flex', gap: '10px', marginTop: '8px' }}
                   >
                     <div style={{ flex: 1 }}>
-                      <label>Paid:</label>
+                      <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Paid:</label>
                       <input
                         type='number'
                         min='0'
@@ -2113,10 +2185,10 @@ class Invoice extends React.PureComponent {
                       />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label>Due:</label>
+                      <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Due:</label>
                       <input
                         type='text'
-                        style={inputStyle}
+                        style={{ ...inputStyle, background: '#f8fafc', color: '#64748b', borderColor: '#f1f5f9' }}
                         value={this.calculateRemainingDue()}
                         readOnly
                       />
@@ -2126,24 +2198,25 @@ class Invoice extends React.PureComponent {
                 <div
                   style={{
                     display: 'flex',
-                    justifyContent: 'flex-end', // Align buttons to the right
-                    gap: '10px', // Add spacing between the buttons
-                    marginBottom: '20px' // Add spacing below the buttons
+                    justifyContent: 'flex-end',
+                    gap: '8px',
+                    marginTop: '6px'
                   }}
                 >
                   <button
                     style={{
-                      backgroundColor: '#6c757d', // Grey for List
+                      backgroundColor: '#f1f5f9',
                       border: 'none',
-                      color: 'white',
-                      padding: '10px 15px',
-                      borderRadius: '5px',
+                      color: '#64748b',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
                       cursor: 'pointer',
-                      fontSize: '14px',
+                      fontSize: '12px',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '5px',
-                      fontWeight: '500'
+                      gap: '6px',
+                      fontWeight: '600',
+                      transition: 'all 0.2s ease'
                     }}
                     onClick={this.handleOpenInvoiceListModal}
                     title="Show Invoices"
@@ -2153,17 +2226,18 @@ class Invoice extends React.PureComponent {
                   </button>
                   <button
                     style={{
-                      backgroundColor: '#28a745', // Green for Save
+                      backgroundColor: '#dcfce7',
                       border: 'none',
-                      color: 'white',
-                      padding: '10px 15px',
-                      borderRadius: '5px',
+                      color: '#16a34a',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
                       cursor: 'pointer',
-                      fontSize: '14px',
+                      fontSize: '12px',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '5px',
-                      fontWeight: '500'
+                      gap: '6px',
+                      fontWeight: '600',
+                      transition: 'all 0.2s ease'
                     }}
                     onClick={this.handleSaveInvoice}
                   >
@@ -2172,17 +2246,18 @@ class Invoice extends React.PureComponent {
                   </button>
                   <button
                     style={{
-                      backgroundColor: '#17a2b8', // Teal for New
+                      backgroundColor: '#e0f2fe',
                       border: 'none',
-                      color: 'white',
-                      padding: '10px 15px',
-                      borderRadius: '5px',
+                      color: '#0284c7',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
                       cursor: 'pointer',
-                      fontSize: '14px',
+                      fontSize: '12px',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '5px',
-                      fontWeight: '500'
+                      gap: '6px',
+                      fontWeight: '600',
+                      transition: 'all 0.2s ease'
                     }}
                     onClick={this.handleNewInvoice}
                   >
@@ -2191,17 +2266,18 @@ class Invoice extends React.PureComponent {
                   </button>
                   <button
                     style={{
-                      backgroundColor: '#007bff', // Blue for Print
+                      backgroundColor: '#3b82f6',
                       border: 'none',
                       color: 'white',
-                      padding: '10px 15px',
-                      borderRadius: '5px',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
                       cursor: 'pointer',
-                      fontSize: '14px',
+                      fontSize: '12px',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '5px',
-                      fontWeight: '500'
+                      gap: '6px',
+                      fontWeight: '600',
+                      transition: 'all 0.2s ease'
                     }}
                     onClick={this.handlePrintInvoice}
                   >
@@ -2212,10 +2288,7 @@ class Invoice extends React.PureComponent {
               </div>
             </div>
           </div >
-        ) : (
-          <NotFound message='No products found.' />
-        )
-        }
+        )}
         {/* Stock Management Modal */}
         <StockModal
           isOpen={this.state.isStockModalOpen}

@@ -260,12 +260,35 @@ router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
 
         // If buyingPrice is 0 or missing (old invoice or new item), fetch current price.
         let buyingPrice = 0;
+        let productDoc = null;
+
         if (item.product) {
-          const productDoc = await Product.findById(item.product);
-          if (productDoc) {
-            buyingPrice = productDoc.buyingPrice || 0;
+          try {
+            productDoc = await Product.findById(item.product);
+          } catch (e) {
+            console.log('Invalid product ID:', item.product);
           }
         }
+
+        // Fallback: Try to find by name if product ID is missing or not found
+        if (!productDoc && item.productName) {
+          productDoc = await Product.findOne({
+            $or: [
+              { shortName: item.productName },
+              { name: item.productName }
+            ]
+          });
+
+          // If found, link the product ID to the invoice item
+          if (productDoc) {
+            item.product = productDoc._id;
+          }
+        }
+
+        if (productDoc) {
+          buyingPrice = productDoc.buyingPrice || 0;
+        }
+
         return {
           ...item,
           buyingPrice

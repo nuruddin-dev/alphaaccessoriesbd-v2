@@ -250,7 +250,7 @@ export const fetchProducts = () => {
     try {
       dispatch(setProductLoading(true));
 
-      const response = await axios.get(`${API_URL}/product`);
+      const response = await axios.get(`${API_URL}/product?limit=2000`);
 
       dispatch({
         type: FETCH_PRODUCTS,

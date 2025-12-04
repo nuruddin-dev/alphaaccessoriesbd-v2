@@ -568,7 +568,11 @@ router.post(
 // fetch products api
 router.get('/', async (req, res) => {
   try {
+    const { page = 1, limit = 100 } = req.query; // Default: page 1, limit 100
+    const skip = (Number(page) - 1) * Number(limit);
+
     let products = [];
+    let total = 0;
 
     if (req.user && req.user.merchant) {
       const brands = await Brand.find({
@@ -576,6 +580,8 @@ router.get('/', async (req, res) => {
       }).populate('merchant', '_id');
 
       const brandId = brands[0]?.['_id'];
+
+      total = await Product.countDocuments({ brand: brandId });
 
       products = await Product.find({})
         .populate({
@@ -586,8 +592,13 @@ router.get('/', async (req, res) => {
           }
         })
         .populate('category')
-        .where('brand', brandId);
+        .where('brand', brandId)
+        .limit(Number(limit))
+        .skip(skip)
+        .sort({ created: -1 }); // Most recent first
     } else {
+      total = await Product.countDocuments({});
+
       products = await Product.find({})
         .populate({
           path: 'brand',
@@ -596,11 +607,18 @@ router.get('/', async (req, res) => {
             model: 'Merchant'
           }
         })
-        .populate('category');
+        .populate('category')
+        .limit(Number(limit))
+        .skip(skip)
+        .sort({ created: -1 }); // Most recent first
     }
 
     res.status(200).json({
-      products
+      products,
+      page: Number(page),
+      limit: Number(limit),
+      total,
+      totalPages: Math.ceil(total / Number(limit))
     });
   } catch (error) {
     res.status(400).json({
