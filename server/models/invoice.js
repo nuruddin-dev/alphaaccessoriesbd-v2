@@ -34,8 +34,7 @@ const InvoiceSchema = new Schema({
       },
       quantity: {
         type: Number,
-        required: true,
-        min: 1
+        required: true
       },
       unitPrice: {
         type: Number,
@@ -48,15 +47,13 @@ const InvoiceSchema = new Schema({
       },
       totalPrice: {
         type: Number,
-        required: true,
-        min: 0
+        required: true
       }
     }
   ],
   subTotal: {
     type: Number,
-    required: true,
-    min: 0
+    required: true
   },
   previousDue: {
     type: Number,
@@ -70,8 +67,7 @@ const InvoiceSchema = new Schema({
   },
   grandTotal: {
     type: Number,
-    required: true,
-    min: 0
+    required: true
   },
   paid: {
     type: Number,
@@ -80,8 +76,7 @@ const InvoiceSchema = new Schema({
   },
   due: {
     type: Number,
-    default: 0,
-    min: 0
+    default: 0
   },
   paymentMethod: {
     type: String,

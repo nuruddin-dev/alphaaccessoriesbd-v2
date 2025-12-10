@@ -18,16 +18,24 @@
   display: flex;
   gap: 16px;
   height: 100%;
+  width: 100%;
 }
 
 .invoice-table-container {
-  flex: 7;
+  flex: 1 1 65%;
+  min-width: 0;
+  /* Allow flex item to shrink below content size */
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .invoice-info-container {
-  flex: 3;
+  flex: 0 0 320px;
+  /* Fixed width on larger screens */
+  min-width: 250px;
+  /* Minimum width to remain readable */
+  max-width: 400px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -372,6 +380,22 @@
     gap: 14px;
   }
 
+  .invoice-info-container {
+    flex: 3 1 0%;
+    /* Force 30% ratio ignoring content */
+    width: auto;
+    min-width: 0;
+    /* Allow full shrinking */
+    max-width: none;
+  }
+
+  .invoice-table-container {
+    flex: 7 1 0%;
+    /* Force 70% ratio ignoring content */
+    width: auto;
+    min-width: 0;
+  }
+
   .invoice-container input,
   .invoice-container select {
     padding: 7px 8px;
@@ -417,6 +441,7 @@
     gap: 12px;
   }
 
+  /* Inherit flex layout from 1400px query */
   .invoice-info-container {
     gap: 8px;
   }
@@ -495,13 +520,9 @@
     gap: 10px;
   }
 
+  /* Inherit flex layout from 1400px query */
   .invoice-info-container {
     gap: 6px;
-    flex: 3.5;
-  }
-
-  .invoice-table-container {
-    flex: 6.5;
   }
 
   .invoice-container input,
@@ -577,5 +598,28 @@
   .invoice-container .dropdown-item {
     padding: 8px 10px;
     font-size: 11px;
+  }
+}
+
+/* Mobile screens - below 768px */
+@media (max-width: 768px) {
+  .invoice-layout {
+    flex-direction: column;
+  }
+
+  .invoice-info-container {
+    flex: none;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    position: static;
+    max-height: none;
+    order: -1;
+    /* Show info on top */
+  }
+
+  .invoice-table-container {
+    flex: none;
+    width: 100%;
   }
 }

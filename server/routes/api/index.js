@@ -77,4 +77,8 @@ router.use('/', sitemapRoutes);
 const dashboardRoutes = require('./dashboard');
 router.use('/dashboard', dashboardRoutes);
 
+// Payment routes
+const paymentRoutes = require('./payment');
+router.use('/payment', paymentRoutes);
+
 module.exports = router;

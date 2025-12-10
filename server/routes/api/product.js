@@ -20,6 +20,8 @@ const { ROLES } = require('../../constants');
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
+const apicache = require('apicache');
+const cache = apicache.middleware;
 
 // fetch product slug api
 router.get('/item/:slug', async (req, res) => {
@@ -55,15 +57,48 @@ router.get('/item/:slug', async (req, res) => {
   }
 });
 
+// fetch storefront products api
+router.get('/storefront', cache('5 minutes'), async (req, res) => {
+  try {
+    const popular = await Product.find({ isActive: true, popular: true })
+      .limit(14)
+      .sort('-created');
+    const premium = await Product.find({ isActive: true, premium: true })
+      .limit(14)
+      .sort('-created');
+    const newArrivals = await Product.find({ isActive: true })
+      .sort('-created')
+      .limit(14);
+
+    res.status(200).json({
+      popular,
+      premium,
+      new: newArrivals
+    });
+  } catch (error) {
+    res.status(400).json({
+      error: 'Your request could not be processed. Please try again.'
+    });
+  }
+});
+
 // fetch product name search api
 router.get('/list/search/:name', async (req, res) => {
   try {
     const name = req.params.name;
+    const searchRegex = new RegExp(name, 'is');
 
+    // Search in both name and shortName fields
     const productDoc = await Product.find(
-      { name: { $regex: new RegExp(name), $options: 'is' }, isActive: true },
-      { name: 1, slug: 1, imageUrl: 1, price: 1, _id: 0 }
-    );
+      {
+        $or: [
+          { name: { $regex: searchRegex } },
+          { shortName: { $regex: searchRegex } }
+        ],
+        isActive: true
+      },
+      { name: 1, shortName: 1, slug: 1, imageUrl: 1, price: 1, buyingPrice: 1, wholeSellPrice: 1, quantity: 1, _id: 1 }
+    ).limit(50); // Limit results for performance
 
     if (productDoc.length < 0) {
       return res.status(404).json({
@@ -568,11 +603,16 @@ router.post(
 // fetch products api
 router.get('/', async (req, res) => {
   try {
-    const { page = 1, limit = 100 } = req.query; // Default: page 1, limit 100
+    const { page = 1, limit = 100, isActive } = req.query; // Default: page 1, limit 100
     const skip = (Number(page) - 1) * Number(limit);
 
     let products = [];
     let total = 0;
+
+    const query = {};
+    if (isActive) {
+      query.isActive = isActive === 'true';
+    }
 
     if (req.user && req.user.merchant) {
       const brands = await Brand.find({
@@ -581,9 +621,11 @@ router.get('/', async (req, res) => {
 
       const brandId = brands[0]?.['_id'];
 
-      total = await Product.countDocuments({ brand: brandId });
+      const merchantQuery = { ...query, brand: brandId };
 
-      products = await Product.find({})
+      total = await Product.countDocuments(merchantQuery);
+
+      products = await Product.find(merchantQuery)
         .populate({
           path: 'brand',
           populate: {
@@ -592,14 +634,13 @@ router.get('/', async (req, res) => {
           }
         })
         .populate('category')
-        .where('brand', brandId)
         .limit(Number(limit))
         .skip(skip)
         .sort({ created: -1 }); // Most recent first
     } else {
-      total = await Product.countDocuments({});
+      total = await Product.countDocuments(query);
 
-      products = await Product.find({})
+      products = await Product.find(query)
         .populate({
           path: 'brand',
           populate: {

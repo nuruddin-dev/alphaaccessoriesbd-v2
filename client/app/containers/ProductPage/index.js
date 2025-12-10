@@ -66,6 +66,7 @@ class ProductPage extends React.PureComponent {
 
   componentWillUnmount() {
     document.body.classList.remove('product-page');
+    this.props.resetProductShop();
   }
 
   // Function to fetch user's public IP
@@ -361,11 +362,11 @@ class ProductPage extends React.PureComponent {
               <select id="district" class="swal2-select bg-light">
               <option value="">জেলা নির্বাচন করুন</option>
                 ${districtsBn
-                  .map(
-                    districtObj =>
-                      `<option value="${districtObj.name}">${districtObj.name}</option>`
-                  )
-                  .join('')}
+            .map(
+              districtObj =>
+                `<option value="${districtObj.name}">${districtObj.name}</option>`
+            )
+            .join('')}
               </select>
               <select id="subDistrict" class="swal2-select bg-light">
                 <option value="">থানা নির্বাচন করুন</option>
@@ -507,20 +508,20 @@ class ProductPage extends React.PureComponent {
                           </tr>
                             <td style="padding: 10px; border: 1px solid #ddd; text-align: left; width: 70%;">${productName}</td>
                             <td style="padding: 10px; border: 1px solid #ddd; width: 30%;">${convertToBengaliDigits(
-                              price
-                            )} ৳</td>
+                price
+              )} ৳</td>
                           </tr>
                           <tr>
                             <td style="padding: 10px; border: 1px solid #ddd; width: 70%; text-align: left;">ডেলিভারি চার্জ</td>
                             <td style="padding: 10px; border: 1px solid #ddd; width: 30%;" id="deliveryCharge">${convertToBengaliDigits(
-                              deliveryCharge
-                            )} ৳</td>
+                deliveryCharge
+              )} ৳</td>
                           </tr>
                           <tr>
                             <td style="padding: 10px; border: 1px solid #ddd; width: 70%; text-align: left;">সর্বমোট</td>
                             <td style="padding: 10px; border: 1px solid #ddd; width: 30%;" id="totalAmount">${convertToBengaliDigits(
-                              totalPrice
-                            )} ৳</td>
+                totalPrice
+              )} ৳</td>
                           </tr>
                         </table>
                         <p style="font-size: 14px; color: #555;">
@@ -635,11 +636,11 @@ class ProductPage extends React.PureComponent {
         ratingValue:
           reviewsSummary.totalReviews > 0
             ? Math.max(
-                1,
-                (
-                  reviewsSummary.totalRatings / reviewsSummary.totalReviews
-                ).toFixed(1)
-              ) // Ensure ratingValue is not zero, default to 1 if no reviews
+              1,
+              (
+                reviewsSummary.totalRatings / reviewsSummary.totalReviews
+              ).toFixed(1)
+            ) // Ensure ratingValue is not zero, default to 1 if no reviews
             : 1,
         reviewCount: Math.max(1, reviewsSummary.totalReviews), // Ensure reviewCount is positive
         ratingCount: Math.max(1, reviewsSummary.totalRatings), // Ensure ratingCount is positive
@@ -870,9 +871,8 @@ class ProductPage extends React.PureComponent {
                         {product.colors.map(color => (
                           <div
                             key={color}
-                            className={`color-box ${
-                              selectedColor === color ? 'selected' : ''
-                            }`}
+                            className={`color-box ${selectedColor === color ? 'selected' : ''
+                              }`}
                             style={{
                               backgroundColor: color.toLowerCase()
                             }}
@@ -999,9 +999,8 @@ const OrderActionButtonDiv = ({
 const StockStatusDiv = ({ product }) => {
   return (
     <div
-      className={`stock-status d-flex ${
-        product.inventory > 0 ? 'in-stock' : 'out-of-stock'
-      }`}
+      className={`stock-status d-flex ${product.inventory > 0 ? 'in-stock' : 'out-of-stock'
+        }`}
     >
       {product.inventory > 0 ? 'In Stock' : 'Out of Stock'}
     </div>

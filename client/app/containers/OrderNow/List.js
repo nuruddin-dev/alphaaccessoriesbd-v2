@@ -131,8 +131,11 @@ import Button from '../../components/Common/Button';
 import { Modal, ModalHeader, ModalBody, ModalFooter, Input } from 'reactstrap';
 import '../../styles/core/_orderNow.scss';
 import { ORDER_STATUS } from '../../constants';
-import moment from 'moment'; // For timeago functionality
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
 import { getRandomLightColor } from '../../utils';
+
+dayjs.extend(relativeTime);
 
 const List = ({
   orders,
@@ -241,7 +244,7 @@ const List = ({
         {
           Header: 'Created',
           accessor: 'createdAt',
-          Cell: ({ value }) => moment(value).fromNow() // Timeago format
+          Cell: ({ value }) => dayjs(value).fromNow() // Timeago format
         },
         {
           Header: 'Note',

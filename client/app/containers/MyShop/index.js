@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { API_URL } from '../../constants';
 import { Row, Col, Card, CardBody, CardTitle, Table, Alert, Button, Input, Label, FormGroup } from 'reactstrap';
-import moment from 'moment';
+import dayjs from 'dayjs';
 import './styles.css';
 
 const MyShop = () => {
@@ -29,37 +29,37 @@ const MyShop = () => {
         setError(null);
 
         let start, end;
-        const today = moment();
+        const today = dayjs();
 
         switch (dateRange) {
             case 'today':
-                start = today.clone().startOf('day');
-                end = today.clone().endOf('day');
+                start = today.startOf('day');
+                end = today.endOf('day');
                 break;
             case 'weekly':
-                start = today.clone().startOf('week');
-                end = today.clone().endOf('week');
+                start = today.startOf('week');
+                end = today.endOf('week');
                 break;
             case 'monthly':
-                start = today.clone().startOf('month');
-                end = today.clone().endOf('month');
+                start = today.startOf('month');
+                end = today.endOf('month');
                 break;
             case 'yearly':
-                start = today.clone().startOf('year');
-                end = today.clone().endOf('year');
+                start = today.startOf('year');
+                end = today.endOf('year');
                 break;
             case 'custom':
                 if (customStartDate && customEndDate) {
-                    start = moment(customStartDate).startOf('day');
-                    end = moment(customEndDate).endOf('day');
+                    start = dayjs(customStartDate).startOf('day');
+                    end = dayjs(customEndDate).endOf('day');
                 } else {
                     setLoading(false);
                     return; // Don't fetch if dates are missing
                 }
                 break;
             default:
-                start = today.clone().startOf('day');
-                end = today.clone().endOf('day');
+                start = today.startOf('day');
+                end = today.endOf('day');
         }
 
         try {
@@ -232,7 +232,7 @@ const MyShop = () => {
                                                     {invoice.invoiceNumber}
                                                 </Link>
                                             </td>
-                                            <td>{moment(invoice.date).format('MMM D, YYYY h:mm A')}</td>
+                                            <td>{dayjs(invoice.date).format('MMM D, YYYY h:mm A')}</td>
                                             <td>{invoice.customerName}</td>
                                             <td className="text-right">৳{invoice.totalSell.toLocaleString()}</td>
                                             <td className={`text-right ${invoice.totalProfit < 0 ? 'myshop-text-danger' : 'myshop-text-success'}`}>

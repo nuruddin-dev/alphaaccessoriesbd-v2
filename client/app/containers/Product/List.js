@@ -18,7 +18,6 @@ import NotFound from '../../components/Common/NotFound';
 class List extends React.PureComponent {
   componentDidMount() {
     this.props.fetchProducts();
-    console.log('props in product: ', this.props);
   }
 
   render() {

@@ -52,9 +52,8 @@ router.get('/:id', auth, async (req, res) => {
   try {
     const invoiceId = req.params.id;
 
-    const invoice = await Invoice.findById(invoiceId);
-    // .populate('invoiceNumber', 'invoiceNumber')
-    // .populate('created', 'created');
+    const invoice = await Invoice.findById(invoiceId)
+      .populate('customer', 'name phoneNumber due');
 
     if (!invoice) {
       return res.status(404).json({
@@ -145,13 +144,23 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
           buyingPrice = productDoc.buyingPrice || 0;
         }
       }
+
+      const quantity = item.quantity ? Number(item.quantity) : 0;
+      const unitPrice = item.unitPrice ? Number(item.unitPrice) : 0;
+      const totalPrice = quantity * unitPrice;
+
       return {
         ...item,
-        buyingPrice
+        buyingPrice,
+        totalPrice
       };
     }));
 
-    // Create new invoice
+    // Recalculate item totalPrice to ensure consistency (quantity * unitPrice)
+    // But use the frontend values for subTotal, grandTotal, and due
+    const calculatedSubTotal = enrichedItems.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
+
+    // Create new invoice - use frontend values for grandTotal and due
     const invoice = new Invoice({
       invoiceNumber,
       createdBy,
@@ -159,12 +168,12 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
       customerName,
       customerPhone,
       items: enrichedItems,
-      subTotal,
+      subTotal: subTotal || calculatedSubTotal,
       previousDue: previousDue || 0,
       discount: discount || 0,
-      grandTotal,
+      grandTotal: grandTotal, // Use frontend value
       paid: paid || 0,
-      due: due || 0,
+      due: due, // Use frontend value
       paymentMethod: paymentMethod || 'cash',
       notes,
       isWholesale: isWholesale
@@ -180,7 +189,8 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
           customerDoc.purchase_history = [];
         }
         customerDoc.purchase_history.push(savedInvoice._id);
-        customerDoc.due = due; // Update the customer's due amount
+        // Increment the customer's due amount by the invoice's due (not replace)
+        customerDoc.due = (customerDoc.due || 0) + (due || 0);
         await customerDoc.save();
       }
     } else if (customerName && customerPhone) {
@@ -207,6 +217,10 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
       message: `Invoice has been created successfully!`,
       invoice: savedInvoice
     });
+
+    // Update product stock
+    await updateProductStock(enrichedItems, 'add');
+
   } catch (error) {
     console.error('Error creating invoice:', error);
     return res.status(400).json({
@@ -252,6 +266,9 @@ router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
 
     // Enrich items with buyingPrice logic
     if (update.items && update.items.length > 0) {
+      // Revert stock changes from the previous invoice state
+      await updateProductStock(existingInvoice.items, 'remove');
+
       const enrichedItems = await Promise.all(update.items.map(async (item) => {
         // If item has a valid buying price (snapshot exists), keep it.
         if (item.buyingPrice && item.buyingPrice > 0) {
@@ -289,12 +306,27 @@ router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
           buyingPrice = productDoc.buyingPrice || 0;
         }
 
+        const quantity = item.quantity ? Number(item.quantity) : 0;
+        const unitPrice = item.unitPrice ? Number(item.unitPrice) : 0;
+        const totalPrice = quantity * unitPrice;
+
         return {
           ...item,
-          buyingPrice
+          buyingPrice,
+          totalPrice
         };
       }));
       update.items = enrichedItems;
+
+      // Use subTotal from frontend, or calculate from items as fallback
+      const calculatedSubTotal = enrichedItems.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
+      if (update.subTotal === undefined) {
+        update.subTotal = calculatedSubTotal;
+      }
+      // grandTotal and due should come from frontend - don't recalculate
+
+      // Apply stock changes for the updated invoice state
+      await updateProductStock(enrichedItems, 'add');
     }
 
     // Update the invoice
@@ -337,6 +369,21 @@ router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
       message: 'Invoice has been updated successfully!',
       invoice: updatedInvoice
     });
+
+    // Apply stock changes for the updated invoice state
+    // Use enrichedItems if available (items were updated), otherwise use existing items (if items weren't in payload)
+    // But wait, if items weren't in payload, we shouldn't have reverted them?
+    // The current logic assumes 'items' is always sent in update or we handle it.
+    // Looking at the code: if (update.items && update.items.length > 0) ...
+    // If update.items is missing, we shouldn't revert/apply.
+    // However, the revert block above runs unconditionally.
+    // We should only revert/apply if items are being updated.
+    // Let's fix this logic in the helper function or call site.
+    // For now, let's assume items are always sent or we need to fetch them if not.
+    // Actually, if items are NOT in the update payload, we shouldn't touch stock.
+    // But I already added the revert call above unconditionally.
+    // I should move the revert call inside the `if (update.items ...)` block.
+
   } catch (error) {
     console.error('Error updating invoice:', error);
     res.status(400).json({
@@ -359,6 +406,9 @@ router.delete('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
         message: 'No invoice found.'
       });
     }
+
+    // Revert stock changes
+    await updateProductStock(invoice.items, 'remove');
 
     // If this invoice is associated with a customer, update the customer
     if (invoice.customer) {
@@ -389,6 +439,7 @@ router.get('/customer/:customerId', auth, async (req, res) => {
     const customerId = req.params.customerId;
 
     const invoices = await Invoice.find({ customer: customerId })
+      .populate('customer', 'name phoneNumber due')
       .sort({ created: -1 });
 
     res.status(200).json({
@@ -407,7 +458,7 @@ router.get('/invoice/:number', async (req, res) => {
 
     const invoice = await Invoice.findOne({
       invoiceNumber
-    });
+    }).populate('customer', 'name phoneNumber due');
 
     if (!invoice) {
       return res
@@ -423,3 +474,29 @@ router.get('/invoice/:number', async (req, res) => {
 });
 
 module.exports = router;
+
+const updateProductStock = async (items, operation) => {
+  if (!items || items.length === 0) return;
+
+  const bulkOps = items.map(item => {
+    // If operation is 'add' (invoice created/updated), we subtract quantity from stock.
+    // If operation is 'remove' (invoice deleted/reverted), we add quantity to stock.
+    // Note: item.quantity can be negative (return).
+    // If item.quantity is -5 (return 5 items), and we 'add' invoice: stock -= -5 => stock += 5. Correct.
+    // If item.quantity is -5 (return 5 items), and we 'remove' invoice: stock += -5 => stock -= 5. Correct.
+
+    const quantity = Number(item.quantity);
+    const adjustment = operation === 'add' ? -quantity : quantity;
+
+    return {
+      updateOne: {
+        filter: { _id: item.product },
+        update: { $inc: { quantity: adjustment } }
+      }
+    };
+  });
+
+  if (bulkOps.length > 0) {
+    await Product.bulkWrite(bulkOps);
+  }
+};

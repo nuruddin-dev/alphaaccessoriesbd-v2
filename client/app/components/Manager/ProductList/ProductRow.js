@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 const ProductRow = ({ product, updateProductDetails, handleOpenHistoryModal }) => {
@@ -10,6 +10,17 @@ const ProductRow = ({ product, updateProductDetails, handleOpenHistoryModal }) =
         previousPrice: product.previousPrice || 0,
         isActive: product.isActive || false
     });
+
+    useEffect(() => {
+        setFormData({
+            quantity: product.quantity || 0,
+            buyingPrice: product.buyingPrice || 0,
+            wholeSellPrice: product.wholeSellPrice || 0,
+            price: product.price || 0,
+            previousPrice: product.previousPrice || 0,
+            isActive: product.isActive || false
+        });
+    }, [product]);
 
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;

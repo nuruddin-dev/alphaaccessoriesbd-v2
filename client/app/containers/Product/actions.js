@@ -10,6 +10,7 @@ import axios from 'axios';
 
 import {
   FETCH_PRODUCTS,
+  FETCH_STOREFRONT_PRODUCTS,
   FETCH_STORE_PRODUCTS,
   FETCH_PRODUCT,
   FETCH_STORE_PRODUCT,
@@ -19,12 +20,14 @@ import {
   SET_PRODUCT_FORM_ERRORS,
   SET_PRODUCT_FORM_EDIT_ERRORS,
   RESET_PRODUCT,
+  RESET_PRODUCT_SHOP,
   ADD_PRODUCT,
   REMOVE_PRODUCT,
   FETCH_PRODUCTS_SELECT,
   SET_PRODUCTS_LOADING,
   SET_ADVANCED_FILTERS,
-  RESET_ADVANCED_FILTERS
+  RESET_ADVANCED_FILTERS,
+  UPDATE_PRODUCT_SUCCESS
 } from './constants';
 
 import { API_URL, ROLES } from '../../constants';
@@ -65,6 +68,12 @@ export const productShopChange = (name, value) => {
 export const resetProduct = () => {
   return async (dispatch, getState) => {
     dispatch({ type: RESET_PRODUCT });
+  };
+};
+
+export const resetProductShop = () => {
+  return async (dispatch, getState) => {
+    dispatch({ type: RESET_PRODUCT_SHOP });
   };
 };
 
@@ -245,12 +254,32 @@ export const fetchProductsSelect = () => {
 };
 
 // fetch products api
-export const fetchProducts = () => {
+export const fetchStorefrontProducts = () => {
   return async (dispatch, getState) => {
     try {
       dispatch(setProductLoading(true));
 
-      const response = await axios.get(`${API_URL}/product?limit=2000`);
+      const response = await axios.get(`${API_URL}/product/storefront`);
+
+      dispatch({
+        type: FETCH_STOREFRONT_PRODUCTS,
+        payload: response.data
+      });
+    } catch (error) {
+      handleError(error, dispatch);
+    } finally {
+      dispatch(setProductLoading(false));
+    }
+  };
+};
+
+// fetch products api
+export const fetchProducts = (limit = 2000, isActive = '') => {
+  return async (dispatch, getState) => {
+    try {
+      dispatch(setProductLoading(true));
+
+      const response = await axios.get(`${API_URL}/product?limit=${limit}&isActive=${isActive}`);
 
       dispatch({
         type: FETCH_PRODUCTS,
@@ -437,6 +466,10 @@ export const updateProductDetails = (id, productData) => {
 
       if (response.data.success === true) {
         dispatch(success(successfulOptions));
+        dispatch({
+          type: UPDATE_PRODUCT_SUCCESS,
+          payload: response.data.product
+        });
       }
     } catch (error) {
       handleError(error, dispatch);

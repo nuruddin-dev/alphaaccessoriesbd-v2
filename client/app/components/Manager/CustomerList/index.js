@@ -4,11 +4,16 @@ import { useTable, useSortBy } from 'react-table';
 import { formatDate } from '../../../utils/date';
 import axios from 'axios';
 import { API_URL } from '../../../constants';
+import PaymentModal from '../PaymentModal';
+import CustomerLedgerModal from '../CustomerLedgerModal';
 
 const CustomerTable = ({ customers, history }) => {
   const [invoiceDetails, setInvoiceDetails] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
 
   // Ensure customers is always an array
   const safeCustomers = Array.isArray(customers)
@@ -71,24 +76,44 @@ const CustomerTable = ({ customers, history }) => {
         Header: 'Actions',
         disableSortBy: true,
         Cell: ({ row }) => (
-          <div>
+          <div style={{ display: 'flex', gap: '12px' }}>
             <i
               className='fa fa-edit'
               onClick={() => history.push(`/dashboard/customer/edit/${row.original.id}`)}
               title='Edit Customer'
-              style={{ cursor: 'pointer', fontSize: '18px', marginRight: '15px', color: '#007bff' }}
+              style={{ cursor: 'pointer', fontSize: '16px', color: '#3b82f6' }}
+            ></i>
+            <i
+              className='fa fa-money'
+              onClick={() => {
+                const customer = safeCustomers.find(c => c._id === row.original.id);
+                setSelectedCustomer(customer);
+                setIsPaymentModalOpen(true);
+              }}
+              title='Record Payment'
+              style={{ cursor: 'pointer', fontSize: '16px', color: '#22c55e' }}
+            ></i>
+            <i
+              className='fa fa-book'
+              onClick={() => {
+                const customer = safeCustomers.find(c => c._id === row.original.id);
+                setSelectedCustomer(customer);
+                setIsLedgerModalOpen(true);
+              }}
+              title='View Ledger'
+              style={{ cursor: 'pointer', fontSize: '16px', color: '#f59e0b' }}
             ></i>
             <i
               className='fa fa-history'
               onClick={() => fetchInvoiceDetails(row.original.purchaseHistory)}
               title='View History'
-              style={{ cursor: 'pointer', fontSize: '18px', color: '#6c757d' }}
+              style={{ cursor: 'pointer', fontSize: '16px', color: '#6c757d' }}
             ></i>
           </div>
         )
       }
     ],
-    []
+    [safeCustomers]
   );
 
   const { getTableProps, getTableBodyProps, headerGroups, rows, prepareRow } =
@@ -123,6 +148,9 @@ const CustomerTable = ({ customers, history }) => {
       );
 
       console.log('Fetched invoice details:', fetchedDetails); // Debugging line
+
+      // Sort by created date descending (newest first)
+      fetchedDetails.sort((a, b) => new Date(b.invoice.created) - new Date(a.invoice.created));
 
       // Store the fetched invoice details in a local array
       setInvoiceDetails(fetchedDetails);
@@ -175,7 +203,7 @@ const CustomerTable = ({ customers, history }) => {
       {/* Floating Modal for Purchase History */}
       {showModal && (
         <div className='history-modal'>
-          <div className='history-modal-content'>
+          <div className='history-modal-content' style={{ width: '80%', maxWidth: '1000px' }}>
             <h4>Purchase History</h4>
             {loadingHistory ? (
               <p>Loading...</p>
@@ -212,7 +240,7 @@ const CustomerTable = ({ customers, history }) => {
                         <td style={{ color: item.invoice.due > 0 ? 'red' : 'green' }}>
                           ৳{item.invoice.due || 0}
                         </td>
-                        <td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
                           {item.invoice.created
                             ? formatDateTime(item.invoice.created)
                             : 'Invalid Date'}
@@ -235,6 +263,30 @@ const CustomerTable = ({ customers, history }) => {
           </div>
         </div>
       )}
+
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={isPaymentModalOpen}
+        onRequestClose={() => {
+          setIsPaymentModalOpen(false);
+          setSelectedCustomer(null);
+        }}
+        customer={selectedCustomer}
+        onSuccess={() => {
+          // Optionally refresh customer list
+          window.location.reload();
+        }}
+      />
+
+      {/* Customer Ledger Modal */}
+      <CustomerLedgerModal
+        isOpen={isLedgerModalOpen}
+        onRequestClose={() => {
+          setIsLedgerModalOpen(false);
+          setSelectedCustomer(null);
+        }}
+        customerId={selectedCustomer?._id}
+      />
     </div>
   );
 };

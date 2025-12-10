@@ -37,7 +37,7 @@ class Invoice extends React.PureComponent {
     visibleItems: 10,
     previousDue: 0,
     discount: 0,
-    paid: 0,
+    paid: '', // Default paid amount is empty
     paymentMethod: 'cash', // Default payment method
     isSearchingCustomer: false, // To track customer search status
     isWholesale: true, // Default to wholesale price
@@ -46,6 +46,7 @@ class Invoice extends React.PureComponent {
     selectedProductIndex: 0, // Tracks the currently highlighted product
     isSearchInvoice: false, // Flag to indicate if searching for an invoice
     invoiceId: null, // Store the invoice ID for updating
+    isSaved: false, // Track if the invoice is saved
     // NEW STATE FOR CUSTOMER SEARCH BY NAME
     customerSearchTerm: '',
     focusedCustomerSearch: false,
@@ -53,16 +54,76 @@ class Invoice extends React.PureComponent {
     selectedCustomerIndex: 0,
     isStockModalOpen: false, // State for Stock Modal
     isInvoiceListModalOpen: false, // State for Invoice List Modal
-    isLoadingProducts: false // Track if products are being loaded
+    isLoadingProducts: false, // Track if products are being loaded
+    searchResults: [], // Store server-side search results
+    cachedProducts: [], // Products loaded from localStorage
+    productCacheTime: null // When products were last cached
+  };
+
+  // LocalStorage keys for caching
+  PRODUCT_CACHE_KEY = 'invoice_products_cache';
+  PRODUCT_CACHE_TIME_KEY = 'invoice_products_cache_time';
+
+  // Load cached products from localStorage
+  loadCachedProducts = () => {
+    try {
+      const cached = localStorage.getItem(this.PRODUCT_CACHE_KEY);
+      const cacheTime = localStorage.getItem(this.PRODUCT_CACHE_TIME_KEY);
+
+      if (cached) {
+        const products = JSON.parse(cached);
+        this.setState({
+          cachedProducts: products,
+          productCacheTime: cacheTime ? new Date(cacheTime) : null
+        });
+        return products;
+      }
+    } catch (error) {
+      console.error('Error loading cached products:', error);
+    }
+    return null;
+  };
+
+  // Save products to localStorage
+  saveProductsToCache = (products) => {
+    try {
+      const now = new Date().toISOString();
+      localStorage.setItem(this.PRODUCT_CACHE_KEY, JSON.stringify(products));
+      localStorage.setItem(this.PRODUCT_CACHE_TIME_KEY, now);
+      this.setState({
+        cachedProducts: products,
+        productCacheTime: new Date(now)
+      });
+    } catch (error) {
+      console.error('Error saving products to cache:', error);
+    }
+  };
+
+  // Refresh products from server and update cache
+  refreshProductCache = async () => {
+    this.setState({ isLoadingProducts: true });
+    try {
+      await this.props.fetchProducts(0);
+      // The products will be saved to cache in componentDidUpdate when props.products changes
+    } catch (error) {
+      console.error('Error refreshing products:', error);
+    }
+    this.setState({ isLoadingProducts: false });
   };
 
   // Fetch products once component mounts
   async componentDidMount() {
     this._isMounted = true;
 
-    // Don't fetch all products on mount - too slow!
-    // Products will be loaded lazily when searching
-    this.props.fetchProducts();
+    // Try to load cached products first
+    const cachedProducts = this.loadCachedProducts();
+
+    // If no cache exists, fetch from API
+    if (!cachedProducts || cachedProducts.length === 0) {
+      this.setState({ isLoadingProducts: true });
+      await this.props.fetchProducts(0);
+      this.setState({ isLoadingProducts: false });
+    }
 
     if (this._isMounted && this.props.user && this.props.user.firstName) {
       this.setState(prevState => ({
@@ -80,6 +141,13 @@ class Invoice extends React.PureComponent {
   }
 
   componentDidUpdate(prevProps, prevState) {
+    // Save products to cache when they're fetched from API
+    if (this.props.products &&
+      this.props.products.length > 0 &&
+      prevProps.products !== this.props.products) {
+      this.saveProductsToCache(this.props.products);
+    }
+
     if (this.props.user && this.props.user.firstName &&
       prevProps.user?.firstName !== this.props.user.firstName) {
       if (this._isMounted) {
@@ -95,27 +163,8 @@ class Invoice extends React.PureComponent {
     const shouldAutoUpdatePaid = !this.state.isPaidChanged && !this.state.isSearchInvoice;
     const wasAutoUpdateEnabled = !prevState.isPaidChanged && !prevState.isSearchInvoice;
 
-    if (shouldAutoUpdatePaid && wasAutoUpdateEnabled) {
-      const prevSubTotal = prevState.invoiceItems.reduce(
-        (sum, item) => sum + item.totalPrice,
-        0
-      );
-      const prevFinalTotal = prevSubTotal + prevState.previousDue - prevState.discount;
+    // Removed auto-update of paid logic
 
-      const currentSubTotal = this.state.invoiceItems.reduce(
-        (sum, item) => sum + item.totalPrice,
-        0
-      );
-      const currentFinalTotal = currentSubTotal + this.state.previousDue - this.state.discount;
-
-      if (prevFinalTotal !== currentFinalTotal && this.state.paid !== currentFinalTotal) {
-        setTimeout(() => {
-          if (this._isMounted) {
-            this.setState({ paid: currentFinalTotal });
-          }
-        }, 0);
-      }
-    }
   }
 
   componentWillUnmount() {
@@ -201,9 +250,11 @@ class Invoice extends React.PureComponent {
           ],
           visibleItems: Math.max(10, invoice.items.length),
           customerInfo: {
-            name: invoice.customerName || '',
-            phone: invoice.customerPhone || ''
+            // Prioritize customer object data, fallback to customerName/customerPhone fields
+            name: (invoice.customer && invoice.customer.name) || invoice.customerName || '',
+            phone: (invoice.customer && invoice.customer.phoneNumber) || invoice.customerPhone || ''
           },
+          customer: invoice.customer || null,
           invoiceInfo: {
             number: invoice.invoiceNumber,
             date: new Date(invoice.created).toISOString().split('T')[0],
@@ -242,8 +293,7 @@ class Invoice extends React.PureComponent {
       0
     );
     const finalTotal = subTotal + previousDue - discount;
-    if (!this.state.isPaidChanged && !this.state.isSearchInvoice)
-      this.setState({ paid: finalTotal });
+    // Removed auto-set of paid to finalTotal to keep it empty by default
     return finalTotal;
   }
 
@@ -253,9 +303,14 @@ class Invoice extends React.PureComponent {
    */
   handleProductChange = (index, productSKU) => {
     const { products } = this.props;
-    const selectedProduct = products.find(
-      product => product.sku === productSKU
-    );
+    const { searchResults, cachedProducts } = this.state;
+
+    // Look in cachedProducts first, then searchResults, then props.products
+    const selectedProduct =
+      cachedProducts.find(p => p.sku === productSKU) ||
+      searchResults.find(p => p.sku === productSKU) ||
+      products.find(p => p.sku === productSKU);
+
     const invoiceItems = [...this.state.invoiceItems];
 
     // Update relevant row data
@@ -293,7 +348,8 @@ class Invoice extends React.PureComponent {
       invoiceItems,
       searchTerm: '',
       focusedRowIndex: null,
-      notes: updatedNotes
+      notes: updatedNotes,
+      isSaved: false // Mark as unsaved
     });
   };
 
@@ -313,14 +369,14 @@ class Invoice extends React.PureComponent {
       return;
     }
 
-    const quantity = Math.max(1, parseFloat(value) || 1);
+    const quantity = parseFloat(value) || 0;
 
     invoiceItems[index] = {
       ...invoiceItems[index],
       quantity,
       totalPrice: quantity * invoiceItems[index].unitPrice
     };
-    this.setState({ invoiceItems });
+    this.setState({ invoiceItems, isSaved: false });
   };
 
   /**
@@ -345,7 +401,24 @@ class Invoice extends React.PureComponent {
       unitPrice: parseFloat(value) || 0,
       totalPrice: (invoiceItems[index].quantity || 0) * (parseFloat(value) || 0)
     };
-    this.setState({ invoiceItems });
+    this.setState({ invoiceItems, isSaved: false });
+  };
+
+  /**
+   * Toggles the quantity between positive and negative to mark as return.
+   */
+  handleToggleReturn = (index) => {
+    const invoiceItems = [...this.state.invoiceItems];
+    const currentQty = parseFloat(invoiceItems[index].quantity) || 0;
+    if (currentQty === 0) return;
+
+    const newQty = currentQty * -1;
+    invoiceItems[index] = {
+      ...invoiceItems[index],
+      quantity: newQty,
+      totalPrice: newQty * invoiceItems[index].unitPrice
+    };
+    this.setState({ invoiceItems, isSaved: false });
   };
 
   /**
@@ -368,8 +441,7 @@ class Invoice extends React.PureComponent {
     // return subTotal + previousDue - discount;
 
     const finalTotal = subTotal + previousDue - discount;
-    if (!this.state.isPaidChanged && !this.state.isSearchInvoice)
-      this.setState({ paid: finalTotal });
+    // Removed auto-set of paid to finalTotal to keep it empty by default
     return finalTotal;
   };
 
@@ -388,9 +460,16 @@ class Invoice extends React.PureComponent {
  */
   saveInvoiceToDatabase = async () => {
     try {
-      // Filter out empty rows (must have product OR productName)
+      // Validate paid amount
+      if (this.state.paid === '' || this.state.paid < 0) {
+        alert('Please enter a valid paid amount. Enter 0 for full due.');
+        return false;
+      }
+
+      // Filter out empty rows (must have product OR productName AND a valid quantity)
       const filledInvoiceItems = this.state.invoiceItems.filter(
-        item => item.product || (item.productName && item.productName.trim() !== '')
+        item => (item.product || (item.productName && item.productName.trim() !== '')) &&
+          (item.quantity !== '' && item.quantity !== 0 && item.quantity !== null && item.quantity !== undefined)
       );
 
       if (filledInvoiceItems.length === 0) {
@@ -535,7 +614,8 @@ class Invoice extends React.PureComponent {
             number: response.invoice.invoiceNumber
           },
           invoiceId: response.invoice._id,
-          isSearchInvoice: true
+          isSearchInvoice: true,
+          isSaved: true // Mark as saved
         });
       }
 
@@ -568,18 +648,15 @@ class Invoice extends React.PureComponent {
 
     // Print after styles are loaded
     printWindow.onload = function () {
-      printWindow.print();
-      // Removed the immediate printWindow.close() from here.
-    };
+      printWindow.focus();
 
-    // Fallback/Robust solution:
-    setTimeout(() => {
-      printWindow.print();
-      // A small delay before closing to ensure the print dialog has time to open.
-      setTimeout(() => {
+      // Close window after print dialog is dismissed (print or cancel)
+      printWindow.onafterprint = function () {
         printWindow.close();
-      }, 1000); // 1 second delay
-    }, 100);
+      };
+
+      printWindow.print();
+    };
   };
 
   /**
@@ -630,43 +707,7 @@ class Invoice extends React.PureComponent {
 
 
 
-    const discountAndGrandTotalHtml =
-      discount > 0
-        ? `
-          <tr class="totals-section totals-row">
-            <td colSpan="3">Discount</td>
-            <td class="total-cell">${discount}</td>
-          </tr>
-          <tr class="totals-section totals-row">
-            <td colSpan="3">Grand Total</td>
-            <td class="total-cell">${grandTotal}</td>
-          </tr>
-        `
-        : '';
 
-    // Conditionally add Due and Grand Total rows
-    const previousDueAndGrandTotalHtml =
-      previousDue > 0
-        ? `
-          <tr class="totals-section totals-row">
-            <td colSpan="3">Previous Due</td>
-            <td class="total-cell">${previousDue}</td>
-          </tr>
-          <tr class="totals-section totals-row">
-            <td colSpan="3">Grand Total</td>
-            <td class="total-cell">${grandTotal + previousDue}</td>
-          </tr>
-        `
-        : '';
-
-    const dueHtml =
-      due > 0
-        ? `
-          <tr class="totals-section totals-row">
-            <td colSpan="3">Remaining Due</td>
-            <td class="total-cell">${due}</td>
-            </tr>`
-        : '';
 
     // Create the full HTML document with CSS
     return `
@@ -756,7 +797,7 @@ class Invoice extends React.PureComponent {
                 }
                 .totals-row td {
                   font-weight: bold;
-                  text-align: right;
+                  text-align: right; /* Changed back to right */
                   border: none;
                 }
                 .notes-cell {
@@ -764,7 +805,7 @@ class Invoice extends React.PureComponent {
                   color: red;
                 }
                 .total-cell {
-                  text-align: right;
+                  text-align: right; /* Changed back to right */
                   border: 1px solid #000; /* Darker border */
                 }
                 .totals-section {
@@ -851,9 +892,34 @@ class Invoice extends React.PureComponent {
                       <td colSpan="2">Total</td>
                       <td class="total-cell">${grandTotal}</td>
                     </tr>
-                    ${discountAndGrandTotalHtml}
-                    ${previousDueAndGrandTotalHtml}
-                    ${dueHtml}
+                    ${previousDue > 0 ? `
+                      <tr class="totals-section totals-row">
+                        <td colSpan="3">Previous Due</td>
+                        <td class="total-cell">${previousDue}</td>
+                      </tr>
+                    ` : ''}
+                    ${discount > 0 ? `
+                      <tr class="totals-section totals-row">
+                        <td colSpan="3">Discount</td>
+                        <td class="total-cell">${discount}</td>
+                      </tr>
+                    ` : ''}
+                    ${(previousDue > 0 || discount > 0) ? `
+                      <tr class="totals-section totals-row">
+                        <td colSpan="3">Grand Total</td>
+                        <td class="total-cell">${grandTotal + previousDue - discount}</td>
+                      </tr>
+                    ` : ''}
+                    <tr class="totals-section totals-row">
+                      <td colSpan="3">Paid</td>
+                      <td class="total-cell">${paid || 0}</td>
+                    </tr>
+                    ${due > 0 ? `
+                      <tr class="totals-section totals-row">
+                        <td colSpan="3">Remaining Due</td>
+                        <td class="total-cell">${due}</td>
+                      </tr>
+                    ` : ''}
                   </tbody>
                 </table>
               </div>
@@ -862,25 +928,47 @@ class Invoice extends React.PureComponent {
           `;
   };
 
-  handleSearchTermChange = async e => {
+  searchProducts = async (term) => {
+    if (!term || term.length < 2) {
+      this.setState({ searchResults: [] });
+      return;
+    }
+
+    try {
+      const response = await axios.get(`${API_URL}/product/list/search/${term}`);
+      if (response.data.products) {
+        this.setState({ searchResults: response.data.products });
+      }
+    } catch (error) {
+      console.error('Error searching products:', error);
+      this.setState({ searchResults: [] });
+    }
+  };
+
+  handlePaidChange = (e) => {
+    const value = e.target.value;
     this.setState({
-      searchTerm: e.target.value,
+      paid: value === '' ? '' : parseFloat(value),
+      isPaidChanged: true,
+      isSaved: false // Mark as unsaved
+    });
+  };
+
+  handleSearchTermChange = e => {
+    const term = e.target.value;
+    this.setState({
+      searchTerm: term,
       selectedProductIndex: 0 // Reset the selected product index
     });
 
-    // Lazy load products if not already loaded
-    if (this.props.products.length === 0 && !this.state.isLoadingProducts) {
-      console.log('Products not loaded yet, fetching...');
-      this.setState({ isLoadingProducts: true });
-      try {
-        await this.props.fetchProducts();
-        console.log('Products loaded successfully:', this.props.products.length);
-      } catch (error) {
-        console.error('Error loading products:', error);
-      } finally {
-        this.setState({ isLoadingProducts: false });
-      }
+    // Debounce the search
+    if (this.searchTimeout) {
+      clearTimeout(this.searchTimeout);
     }
+
+    this.searchTimeout = setTimeout(() => {
+      this.searchProducts(term);
+    }, 300);
   };
 
   handleFocusProduct = index => {
@@ -888,6 +976,19 @@ class Invoice extends React.PureComponent {
     if ((index + 1) % 10 === 0) {
       this.showMoreItems();
     }
+
+    const item = this.state.invoiceItems[index];
+
+    // If the item has data but no product object (e.g. legacy item), preserve it for editing
+    // This prevents wiping the row when clicking on it
+    if (!item.product && (item.productName || item.quantity || item.unitPrice)) {
+      this.setState({
+        focusedRowIndex: index,
+        searchTerm: item.productName || ''
+      });
+      return;
+    }
+
     const invoiceItems = [...this.state.invoiceItems];
 
     // Clear the product data for the focused row
@@ -918,7 +1019,7 @@ class Invoice extends React.PureComponent {
     if (item && item.product) {
       this.setState({
         focusedRowIndex: index,
-        searchTerm: item.product.shortName || item.product.name,
+        searchTerm: item.productName || item.product.shortName || item.product.name || '',
         selectedProductIndex: 0
       });
     }
@@ -949,15 +1050,18 @@ class Invoice extends React.PureComponent {
           newInvoiceItems[focusedRowIndex] = {
             ...newInvoiceItems[focusedRowIndex],
             product: null,
+            productName: '', // Clear productName as well
             quantity: '',
             unitPrice: '',
             totalPrice: 0,
+            buyingPrice: 0
           };
           this.setState({
             invoiceItems: newInvoiceItems,
             focusedRowIndex: null,
             selectedProductIndex: 0, // Reset selected index
             searchTerm: '', // Ensure search term is cleared
+            isSaved: false // Mark as unsaved
           });
           return;
         }
@@ -1089,6 +1193,25 @@ class Invoice extends React.PureComponent {
   };
 
   /**
+   * Helper: Fetches the last invoice due for a customer
+   * Returns the due amount from the most recent invoice, or 0 if no invoices exist
+   */
+  fetchLastInvoiceDue = async (customerId) => {
+    if (!customerId) return 0;
+    try {
+      const response = await axios.get(`${API_URL}/invoice/customer/${customerId}`);
+      if (response.data.invoices && response.data.invoices.length > 0) {
+        // Invoices are already sorted by created desc, so first one is the latest
+        return response.data.invoices[0].due || 0;
+      }
+      return 0;
+    } catch (error) {
+      console.error('Error fetching last invoice due:', error);
+      return 0;
+    }
+  };
+
+  /**
    * Handles customer phone input change and searches for existing customer.
    */
   handleCustomerPhoneChange = async value => {
@@ -1115,6 +1238,8 @@ class Invoice extends React.PureComponent {
 
         if (response.data.customers && response.data.customers.length > 0) {
           const customer = response.data.customers[0]; // Use the first matching customer
+          // Fetch last invoice due for this customer
+          const lastInvoiceDue = await this.fetchLastInvoiceDue(customer._id);
           this.setState({
             customer: customer,
             customerInfo: {
@@ -1122,7 +1247,7 @@ class Invoice extends React.PureComponent {
               name: customer.name,
               phone: customer.phoneNumber
             },
-            previousDue: customer.due || 0,
+            previousDue: lastInvoiceDue,
             isSearchingCustomer: false // Stop searching
           });
         } else {
@@ -1212,14 +1337,16 @@ class Invoice extends React.PureComponent {
   /**
    * NEW: Handles the selection of a customer from the dropdown.
    */
-  handleCustomerSelect = (customer) => {
+  handleCustomerSelect = async (customer) => {
+    // Fetch last invoice due for this customer
+    const lastInvoiceDue = await this.fetchLastInvoiceDue(customer._id);
     this.setState({
       customer: customer,
       customerInfo: {
         name: customer.name,
         phone: customer.phoneNumber
       },
-      previousDue: customer.due || 0,
+      previousDue: lastInvoiceDue,
       customerSearchTerm: '', // Clear the search term
       focusedCustomerSearch: false, // Hide the dropdown
       filteredCustomers: [], // Clear the results
@@ -1285,8 +1412,17 @@ class Invoice extends React.PureComponent {
 
 
   handleRefreshProducts = async () => {
-    // Fetch the latest product list without affecting selected products
-    await this.props.fetchProducts();
+    // Clear cache and fetch fresh products
+    this.setState({ isLoadingProducts: true });
+    try {
+      await this.props.fetchProducts(0);
+      // Products will be saved to cache in componentDidUpdate
+      alert('Products refreshed successfully!');
+    } catch (error) {
+      console.error('Error refreshing products:', error);
+      alert('Failed to refresh products.');
+    }
+    this.setState({ isLoadingProducts: false });
   };
 
   // Handle opening the stock modal
@@ -1407,8 +1543,21 @@ class Invoice extends React.PureComponent {
     }
   };
 
-  handleNewInvoice = () => {
-    // Reset the state to create a new invoice
+  /**
+   * Resets the invoice form to create a new invoice.
+   */
+  handleNewInvoice = async () => {
+    if (!this.state.isSaved) {
+      const confirmNew = window.confirm(
+        'Current invoice is not saved. Do you want to save it before creating a new one?\n\nClick OK to Save & New.\nClick Cancel to Discard & New.'
+      );
+
+      if (confirmNew) {
+        const saved = await this.saveInvoiceToDatabase();
+        if (!saved) return; // If save failed, don't proceed
+      }
+    }
+
     this.setState({
       invoiceItems: Array(100).fill({
         product: null,
@@ -1424,22 +1573,23 @@ class Invoice extends React.PureComponent {
       },
       customer: null,
       invoiceInfo: {
-        number: `${Date.now()}`, // Use current milliseconds for the invoice number
+        number: `${Date.now()}`,
         date: new Date().toISOString().split('T')[0],
-        created: new Date().toISOString(), // Initialize with current time
-        createdBy: this.props.user.firstName || 'Admin' // Default created by
+        created: new Date().toISOString(),
+        createdBy: this.props.user ? this.props.user.firstName : 'Admin'
       },
       visibleItems: 10,
       previousDue: 0,
       discount: 0,
-      paid: 0,
-      paymentMethod: 'cash', // Default payment method
-      isSearchingCustomer: false, // To track customer search status
-      isWholesale: true, // Default to wholesale price
-      isPaidChanged: false, // Track if paid amount has been changed
-      notes: '', // Default value for notes
-      isSearchInvoice: false, // Flag to indicate if searching for an invoice
-      invoiceId: null, // Store the invoice ID for updating
+      paid: '', // Reset paid to empty
+      paymentMethod: 'cash',
+      isSearchingCustomer: false,
+      isWholesale: true,
+      isPaidChanged: false,
+      notes: '',
+      selectedProductIndex: 0,
+      isSearchInvoice: false,
+      invoiceId: null,
       // RESET NEW CUSTOMER SEARCH STATE
       customerSearchTerm: '',
       focusedCustomerSearch: false,
@@ -1519,18 +1669,26 @@ class Invoice extends React.PureComponent {
       customerSearchTerm,
       focusedCustomerSearch,
       filteredCustomers,
-      selectedCustomerIndex
+      selectedCustomerIndex,
+      searchResults,
+      cachedProducts,
+      productCacheTime,
+      isLoadingProducts
     } = this.state;
 
+    // Use cachedProducts if available, otherwise use props.products
+    const allProducts = cachedProducts.length > 0 ? cachedProducts : (Array.isArray(products) ? products : []);
+
     // Calculate filtered products based on search term
-    const filteredProducts =
-      searchTerm.length > 0 && Array.isArray(products)
-        ? products.filter(product =>
-          (product.shortName || product.name).toLowerCase().includes(searchTerm.toLowerCase())
-        )
-        : Array.isArray(products)
-          ? products
-          : [];
+    // Filter locally from cached products
+    const filteredProducts = searchTerm.length > 0
+      ? allProducts.filter(product => {
+        const term = searchTerm.toLowerCase();
+        const name = (product.name || '').toLowerCase();
+        const shortName = (product.shortName || '').toLowerCase();
+        return name.includes(term) || shortName.includes(term);
+      }).slice(0, 50) // Limit to 50 results
+      : allProducts;
 
     // Styles - Minimal Light Compact Theme
     const tableStyle = {
@@ -1845,17 +2003,18 @@ class Invoice extends React.PureComponent {
 
                         {/* Quantity input */}
                         <td style={smallCellStyle}>
-                          <input
-                            type='number'
-                            className='invoice-row-input'
-                            min='1'
-                            style={inputStyle}
-                            value={item.quantity}
-                            onChange={e =>
-                              this.handleQuantityChange(index, e.target.value)
-                            }
-                            onKeyDown={e => this.handleKeyDown(e, index)}
-                          />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <input
+                              type='number'
+                              className='invoice-row-input'
+                              style={inputStyle}
+                              value={item.quantity}
+                              onChange={e =>
+                                this.handleQuantityChange(index, e.target.value)
+                              }
+                              onKeyDown={e => this.handleKeyDown(e, index)}
+                            />
+                          </div>
                         </td>
 
                         {/* Unit Price input */}
@@ -1928,19 +2087,24 @@ class Invoice extends React.PureComponent {
                   {/* Refresh Button */}
                   <button
                     style={{
-                      background: '#f1f5f9',
+                      background: isLoadingProducts ? '#dbeafe' : '#f1f5f9',
                       border: 'none',
-                      cursor: 'pointer',
+                      cursor: isLoadingProducts ? 'not-allowed' : 'pointer',
                       fontSize: '15px',
-                      color: '#64748b',
+                      color: isLoadingProducts ? '#3b82f6' : '#64748b',
                       padding: '10px 12px',
                       borderRadius: '8px',
-                      transition: 'all 0.2s ease'
+                      transition: 'all 0.2s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
                     }}
                     onClick={this.handleRefreshProducts}
-                    title="Refresh product list"
+                    disabled={isLoadingProducts}
+                    title={`Refresh products (${allProducts.length} cached)`}
                   >
-                    <i className="fa fa-refresh" aria-hidden="true"></i>
+                    <i className={`fa fa-refresh ${isLoadingProducts ? 'fa-spin' : ''}`} aria-hidden="true"></i>
+                    <span style={{ fontSize: '11px' }}>{allProducts.length}</span>
                   </button>
 
                   {/* Stock Button */}
@@ -2203,6 +2367,21 @@ class Invoice extends React.PureComponent {
                     marginTop: '6px'
                   }}
                 >
+                  {this.state.invoiceItems.some(item => item.product || (item.productName && item.productName.trim() !== '')) && (
+                    <div style={{
+                      marginRight: '15px',
+                      padding: '5px 10px',
+                      color: this.state.isSaved ? '#16a34a' : '#dc2626',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px'
+                    }}>
+                      <i className={`fa ${this.state.isSaved ? 'fa-check-circle' : 'fa-exclamation-circle'}`}></i>
+                      {this.state.isSaved ? 'Saved' : 'Unsaved'}
+                    </div>
+                  )}
                   <button
                     style={{
                       backgroundColor: '#f1f5f9',
@@ -2244,6 +2423,7 @@ class Invoice extends React.PureComponent {
                     <i className="fa fa-save" aria-hidden="true"></i>
                     Save
                   </button>
+
                   <button
                     style={{
                       backgroundColor: '#e0f2fe',
@@ -2293,9 +2473,9 @@ class Invoice extends React.PureComponent {
         <StockModal
           isOpen={this.state.isStockModalOpen}
           onRequestClose={this.handleCloseStockModal}
-          products={products}
-          handleUpdateStock={this.handleStockUpdate}
-          handleAddStock={this.handleStockAdd}
+          products={cachedProducts.length > 0 ? cachedProducts : products}
+          handleUpdateStock={this.handleUpdateStock}
+          handleAddStock={this.handleAddStock}
         />
         {/* Invoice List Modal */}
         <InvoiceListModal

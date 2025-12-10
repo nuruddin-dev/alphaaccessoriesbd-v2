@@ -6,6 +6,7 @@
 
 import {
   FETCH_PRODUCTS,
+  FETCH_STOREFRONT_PRODUCTS,
   FETCH_STORE_PRODUCTS,
   FETCH_PRODUCT,
   FETCH_STORE_PRODUCT,
@@ -22,11 +23,17 @@ import {
   FETCH_PRODUCTS_SELECT,
   SET_PRODUCTS_LOADING,
   SET_ADVANCED_FILTERS,
-  RESET_ADVANCED_FILTERS
+  RESET_ADVANCED_FILTERS,
+  UPDATE_PRODUCT_SUCCESS
 } from './constants';
 
 const initialState = {
   products: [],
+  storefront: {
+    popular: [],
+    new: [],
+    premium: []
+  },
   storeProducts: [],
   product: {
     _id: '',
@@ -102,6 +109,11 @@ const productReducer = (state = initialState, action) => {
       return {
         ...state,
         products: action.payload
+      };
+    case FETCH_STOREFRONT_PRODUCTS:
+      return {
+        ...state,
+        storefront: action.payload
       };
     case FETCH_STORE_PRODUCTS:
       return {
@@ -261,6 +273,13 @@ const productReducer = (state = initialState, action) => {
           count: 0,
           limit: 20
         }
+      };
+    case UPDATE_PRODUCT_SUCCESS:
+      return {
+        ...state,
+        products: state.products.map(product =>
+          product._id === action.payload._id ? action.payload : product
+        )
       };
     default:
       return state;

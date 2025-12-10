@@ -191,9 +191,10 @@ const StockModal = ({
     };
 
     // Filter products based on search term
-    const filteredProducts = products.filter(product =>
-        (product.shortName || product.name).toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredProducts = Array.isArray(products) ? products.filter(product => {
+        const name = product.shortName || product.name || '';
+        return name.toLowerCase().includes(searchTerm.toLowerCase());
+    }) : [];
 
     return (
         <Modal

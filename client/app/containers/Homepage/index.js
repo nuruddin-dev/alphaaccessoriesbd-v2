@@ -19,10 +19,46 @@ import 'slick-carousel/slick/slick-theme.css';
 import { getImagePath } from '../../utils';
 
 class Homepage extends React.PureComponent {
-  componentDidMount() {
-    const slug = this.props.match.params.slug;
-    this.props.fetchProducts();
+  constructor(props) {
+    super(props);
+    this.state = {
+      otherProductsLoaded: false
+    };
+    this.otherProductsRef = React.createRef();
   }
+
+  componentDidMount() {
+    this.props.fetchStorefrontProducts();
+
+    // Setup Intersection Observer for lazy loading "Other Products"
+    const options = {
+      root: null,
+      rootMargin: '0px',
+      threshold: 0.1
+    };
+
+    this.observer = new IntersectionObserver(this.handleObserver, options);
+    if (this.otherProductsRef.current) {
+      this.observer.observe(this.otherProductsRef.current);
+    }
+  }
+
+  componentWillUnmount() {
+    if (this.observer) {
+      this.observer.disconnect();
+    }
+  }
+
+  handleObserver = (entities) => {
+    const target = entities[0];
+    if (target.isIntersecting && !this.state.otherProductsLoaded) {
+      this.setState({ otherProductsLoaded: true });
+      this.props.fetchProducts(12, true); // Fetch initial batch of "Other Products"
+      if (this.observer) {
+        this.observer.disconnect();
+      }
+    }
+  };
 
   renderProductSection(title, products) {
     if (products.length === 0) return null;
@@ -58,29 +94,23 @@ class Homepage extends React.PureComponent {
   render() {
     const {
       products,
+      storefront,
       isLoading,
       authenticated,
       updateWishlist,
       history,
       categories
     } = this.props;
-    const displayProducts = products && products.length > 0;
 
-    // Separate products into different categories
-    const popularProducts = products
-      .filter(obj => obj.popular === true)
-      .slice(0, 14);
-    const newProducts = products
-      .sort((a, b) => new Date(b.addedTime) - new Date(a.addedTime))
-      .slice(0, 14);
-    const premiumProducts = products
-      .filter(obj => obj.premium === true)
-      .slice(0, 14);
+    const { popular, new: newProducts, premium } = storefront;
+    const otherProducts = products.filter(p => p.isActive === true);
+
+    const displayStorefront = popular.length > 0 || newProducts.length > 0 || premium.length > 0;
 
     // Determine if carousel is needed for each category
-    const showPopularSlider = popularProducts.length > 5;
+    const showPopularSlider = popular.length > 5;
     const showNewSlider = newProducts.length > 5;
-    const showPremiumSlider = premiumProducts.length > 5;
+    const showPremiumSlider = premium.length > 5;
 
     const handleNewArrivalSeeAllClick = () => {
       history.push('/shop');
@@ -207,7 +237,7 @@ class Homepage extends React.PureComponent {
                   )}
                 </ul>
               </div>
-              {displayProducts && (
+              {displayStorefront && (
                 <>
                   {/*--------- Popular Products ----------*/}
 
@@ -217,14 +247,14 @@ class Homepage extends React.PureComponent {
                   <div className='container pb-4'>
                     {!showPopularSlider && (
                       <ProductList
-                        products={popularProducts.slice(0, 5)}
+                        products={popular}
                         authenticated={authenticated}
                         updateWishlist={updateWishlist}
                       />
                     )}
                     {showPopularSlider && (
                       <Slider {...settings}>
-                        {chunkArrayByBreakpoint(popularProducts).map(
+                        {chunkArrayByBreakpoint(popular).map(
                           (productChunk, index) => (
                             <div key={index}>
                               <ProductList
@@ -251,7 +281,7 @@ class Homepage extends React.PureComponent {
                   <div className='container pb-4'>
                     {!showNewSlider && (
                       <ProductList
-                        products={newProducts.slice(0, 5)}
+                        products={newProducts}
                         authenticated={authenticated}
                         updateWishlist={updateWishlist}
                       />
@@ -282,14 +312,14 @@ class Homepage extends React.PureComponent {
                   <div className='container pb-4'>
                     {!showPremiumSlider && (
                       <ProductList
-                        products={premiumProducts.slice(0, 5)}
+                        products={premium}
                         authenticated={authenticated}
                         updateWishlist={updateWishlist}
                       />
                     )}
                     {showPremiumSlider && (
                       <Slider {...settings}>
-                        {chunkArrayByBreakpoint(premiumProducts).map(
+                        {chunkArrayByBreakpoint(premium).map(
                           (productChunk, index) => (
                             <div key={index}>
                               <ProductList
@@ -305,19 +335,23 @@ class Homepage extends React.PureComponent {
                   </div>
 
                   {/*--------- Other Products ----------*/}
-                  <div className='text-left border-bottom mt-4 mb-4'>
+                  <div className='text-left border-bottom mt-4 mb-4' ref={this.otherProductsRef}>
                     <h2>Other Products</h2>
                   </div>
                   <div className='container pb-4'>
-                    <ProductList
-                      products={products}
-                      authenticated={authenticated}
-                      updateWishlist={updateWishlist}
-                    />
+                    {this.state.otherProductsLoaded ? (
+                      <ProductList
+                        products={otherProducts}
+                        authenticated={authenticated}
+                        updateWishlist={updateWishlist}
+                      />
+                    ) : (
+                      <div className="text-center py-4">Loading other products...</div>
+                    )}
                   </div>
                 </>
               )}
-              {!isLoading && !displayProducts && (
+              {!isLoading && !displayStorefront && (
                 <NotFound message='No products found.' />
               )}
             </div>
@@ -393,7 +427,7 @@ class Homepage extends React.PureComponent {
                 </div>
               }
 
-              {displayProducts && (
+              {displayStorefront && (
                 <>
                   {/* Popular Products */}
                   <div className='text-left border-bottom mt-4 mb-4'>
@@ -401,7 +435,7 @@ class Homepage extends React.PureComponent {
                   </div>
                   {this.renderProductSection(
                     'Popular Products',
-                    popularProducts
+                    popular
                   )}
 
                   {/* New Arrival Products */}
@@ -422,22 +456,21 @@ class Homepage extends React.PureComponent {
                   </div>
                   {this.renderProductSection(
                     'Premium Products',
-                    premiumProducts
+                    premium
                   )}
 
                   {/* Other Products */}
-                  <div className='text-left border-bottom mt-4 mb-4'>
+                  <div className='text-left border-bottom mt-4 mb-4' ref={this.otherProductsRef}>
                     <h2>Other Products</h2>
                   </div>
-                  {this.renderProductSection('Other Products', products)}
-                  {/* <ProductList
-                    products={products}
-                    authenticated={this.props.authenticated}
-                    updateWishlist={this.props.updateWishlist}
-                  /> */}
+                  {this.state.otherProductsLoaded ? (
+                    this.renderProductSection('Other Products', otherProducts)
+                  ) : (
+                    <div className="text-center py-4">Loading other products...</div>
+                  )}
                 </>
               )}
-              {!isLoading && !displayProducts && (
+              {!isLoading && !displayStorefront && (
                 <NotFound message='No products found.' />
               )}
             </div>
@@ -472,7 +505,7 @@ function chunkArray(array, chunkSize) {
 const CustomNextArrow = ({ onClick }) => {
   return (
     <div className='custom-arrow next-arrow' onClick={onClick}>
-      &#9654; {/* Right Arrow Icon */}
+      <i className='fa fa-chevron-right' style={{ fontSize: '20px' }} />
     </div>
   );
 };
@@ -481,7 +514,7 @@ const CustomNextArrow = ({ onClick }) => {
 const CustomPrevArrow = ({ onClick }) => {
   return (
     <div className='custom-arrow prev-arrow' onClick={onClick}>
-      &#9664; {/* Left Arrow Icon */}
+      <i className='fa fa-chevron-left' style={{ fontSize: '20px' }} />
     </div>
   );
 }; // Custom Next Arrow Component
@@ -491,7 +524,7 @@ const CustomNextArrowProduct = ({ onClick }) => {
       className='custom-arrow custom-arrow-product next-arrow next-arrow-product'
       onClick={onClick}
     >
-      &#9654; {/* Right Arrow Icon */}
+      <i className='fa fa-chevron-right' style={{ fontSize: '20px' }} />
     </div>
   );
 };
@@ -503,7 +536,7 @@ const CustomPrevArrowProduct = ({ onClick }) => {
       className='custom-arrow custom-arrow-product prev-arrow prev-arrow-product'
       onClick={onClick}
     >
-      &#9664; {/* Left Arrow Icon */}
+      <i className='fa fa-chevron-left' style={{ fontSize: '20px' }} />
     </div>
   );
 };
@@ -511,6 +544,7 @@ const CustomPrevArrowProduct = ({ onClick }) => {
 const mapStateToProps = state => {
   return {
     products: state.product.products,
+    storefront: state.product.storefront,
     isLoading: state.product.isLoading,
     authenticated: state.authentication.authenticated,
     categories: state.category.storeCategories

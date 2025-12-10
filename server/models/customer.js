@@ -20,6 +20,34 @@ const CustomerSchema = new Schema({
       ref: 'Invoice'
     }
   ],
+  payment_history: [
+    {
+      amount: {
+        type: Number,
+        required: true
+      },
+      date: {
+        type: Date,
+        default: Date.now
+      },
+      relatedInvoice: {
+        type: Schema.Types.ObjectId,
+        ref: 'Invoice'
+      },
+      paymentMethod: {
+        type: String,
+        default: 'cash',
+        enum: ['cash', 'bank', 'bkash', 'nagad']
+      },
+      notes: {
+        type: String
+      },
+      createdBy: {
+        type: String,
+        default: 'Admin'
+      }
+    }
+  ],
   due: {
     type: Number,
     default: 0
