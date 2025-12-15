@@ -47,7 +47,7 @@ const Admin = props => {
 
         <Col
           xs='12'
-          md='7'
+          md={isOrderNowSelected || isInvoiceSelected ? '12' : '7'}
           xl={isOrderNowSelected || isInvoiceSelected ? '12' : '9'}
         >
           <div className='panel-body'>

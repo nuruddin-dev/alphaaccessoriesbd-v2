@@ -1193,20 +1193,20 @@ class Invoice extends React.PureComponent {
   };
 
   /**
-   * Helper: Fetches the last invoice due for a customer
-   * Returns the due amount from the most recent invoice, or 0 if no invoices exist
+   * Helper: Gets the customer's current due (ledger balance)
+   * This returns the customer's total outstanding due which accounts for all invoices and payments
    */
-  fetchLastInvoiceDue = async (customerId) => {
+  fetchCustomerDue = async (customerId) => {
     if (!customerId) return 0;
     try {
-      const response = await axios.get(`${API_URL}/invoice/customer/${customerId}`);
-      if (response.data.invoices && response.data.invoices.length > 0) {
-        // Invoices are already sorted by created desc, so first one is the latest
-        return response.data.invoices[0].due || 0;
+      // Fetch the customer to get their current due (which is synced with ledger balance)
+      const response = await axios.get(`${API_URL}/customer/${customerId}`);
+      if (response.data.customer) {
+        return response.data.customer.due || 0;
       }
       return 0;
     } catch (error) {
-      console.error('Error fetching last invoice due:', error);
+      console.error('Error fetching customer due:', error);
       return 0;
     }
   };
@@ -1239,7 +1239,7 @@ class Invoice extends React.PureComponent {
         if (response.data.customers && response.data.customers.length > 0) {
           const customer = response.data.customers[0]; // Use the first matching customer
           // Fetch last invoice due for this customer
-          const lastInvoiceDue = await this.fetchLastInvoiceDue(customer._id);
+          const customerDue = await this.fetchCustomerDue(customer._id);
           this.setState({
             customer: customer,
             customerInfo: {
@@ -1247,7 +1247,7 @@ class Invoice extends React.PureComponent {
               name: customer.name,
               phone: customer.phoneNumber
             },
-            previousDue: lastInvoiceDue,
+            previousDue: customerDue,
             isSearchingCustomer: false // Stop searching
           });
         } else {
@@ -1339,14 +1339,14 @@ class Invoice extends React.PureComponent {
    */
   handleCustomerSelect = async (customer) => {
     // Fetch last invoice due for this customer
-    const lastInvoiceDue = await this.fetchLastInvoiceDue(customer._id);
+    const customerDue = await this.fetchCustomerDue(customer._id);
     this.setState({
       customer: customer,
       customerInfo: {
         name: customer.name,
         phone: customer.phoneNumber
       },
-      previousDue: lastInvoiceDue,
+      previousDue: customerDue,
       customerSearchTerm: '', // Clear the search term
       focusedCustomerSearch: false, // Hide the dropdown
       filteredCustomers: [], // Clear the results
@@ -1855,27 +1855,10 @@ class Invoice extends React.PureComponent {
       borderRadius: '4px'
     };
 
-    const invoiceLayout = {
-      display: 'flex',
-      gap: '16px'
-    };
-
-    const invoiceTableContainer = {
-      flex: 6.5,
-      display: 'flex',
-      flexDirection: 'column'
-    };
-
-    const invoiceInfoContainer = {
-      flex: 3.5,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '8px',
-      position: 'sticky',
-      top: '5px',
-      alignSelf: 'flex-start',
-      maxHeight: 'calc(100vh - 50px)'
-    };
+    // Layout styles moved to CSS class names
+    // const invoiceLayout = { ... }
+    // const invoiceTableContainer = { ... }
+    // const invoiceInfoContainer = { ... }
 
     // Display only the visible items
     const visibleInvoiceItems = invoiceItems.slice(0, visibleItems);
@@ -1888,9 +1871,9 @@ class Invoice extends React.PureComponent {
         ) : (
           <div className='invoice-container'>
             {/* Invoice Layout */}
-            <div style={invoiceLayout}>
+            <div className="invoice-layout">
               {/* Left: Invoice Table */}
-              <div style={invoiceTableContainer}>
+              <div className="invoice-table-container">
                 <table style={tableStyle}>
                   <thead>
                     <tr>
@@ -2138,7 +2121,7 @@ class Invoice extends React.PureComponent {
               </div>
 
               {/* Right: Invoice and Customer Information */}
-              <div style={invoiceInfoContainer}>
+              <div className="invoice-info-container">
                 <div style={infoBoxStyle}>
                   {/* Invoice Number and Payment Method */}
                   <div style={{ display: 'flex', gap: '10px' }}>
@@ -2474,8 +2457,8 @@ class Invoice extends React.PureComponent {
           isOpen={this.state.isStockModalOpen}
           onRequestClose={this.handleCloseStockModal}
           products={cachedProducts.length > 0 ? cachedProducts : products}
-          handleUpdateStock={this.handleUpdateStock}
-          handleAddStock={this.handleAddStock}
+          handleUpdateStock={this.handleStockUpdate}
+          handleAddStock={this.handleStockAdd}
         />
         {/* Invoice List Modal */}
         <InvoiceListModal

@@ -100,6 +100,9 @@ router.get('/ledger/:customerId', auth, async (req, res) => {
             }
         });
 
+        // Reverse ledger entries so newest appear first (for display)
+        ledgerEntries.reverse();
+
         res.status(200).json({
             customer: {
                 _id: customer._id,
@@ -189,10 +192,48 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
         }
         customerDoc.payment_history.push(paymentData);
 
-        // Update customer's due amount
-        customerDoc.due = (customerDoc.due || 0) - amount;
-
         await customerDoc.save();
+
+        // Recalculate customer's due based on ledger calculation
+        // This ensures the customer's due matches the ledger's running balance
+        const customerWithInvoices = await Customer.findById(customerId)
+            .populate({
+                path: 'purchase_history',
+                select: 'subTotal previousDue discount paid created'
+            });
+
+        // Calculate running balance using the same logic as ledger endpoint
+        let runningBalance = 0;
+        let isFirstInvoice = true;
+
+        // Sort invoices by date
+        const sortedInvoices = (customerWithInvoices.purchase_history || [])
+            .filter(inv => inv)
+            .sort((a, b) => new Date(a.created || 0) - new Date(b.created || 0));
+
+        // Calculate balance from invoices
+        for (const invoice of sortedInvoices) {
+            // For the first invoice, include previousDue as opening balance
+            if (isFirstInvoice && invoice.previousDue > 0) {
+                runningBalance += invoice.previousDue;
+                isFirstInvoice = false;
+            }
+
+            // New amount from this invoice = subTotal - discount - paid
+            const discount = invoice.discount || 0;
+            const newAmount = (invoice.subTotal || 0) - discount - (invoice.paid || 0);
+            runningBalance += newAmount;
+        }
+
+        // Subtract all payments
+        const allPayments = customerWithInvoices.payment_history || [];
+        for (const payment of allPayments) {
+            runningBalance -= payment.amount || 0;
+        }
+
+        // Update customer's due to match ledger balance
+        customerWithInvoices.due = runningBalance;
+        await customerWithInvoices.save();
 
         // If related invoice exists, update its paid and due amounts
         if (relatedInvoice) {
@@ -240,9 +281,6 @@ router.delete('/:customerId/:paymentId', auth, role.check(ROLES.Admin), async (r
 
         const payment = customer.payment_history[paymentIndex];
 
-        // Revert customer's due amount
-        customer.due = (customer.due || 0) + payment.amount;
-
         // Remove payment from history
         customer.payment_history.splice(paymentIndex, 1);
 
@@ -257,6 +295,47 @@ router.delete('/:customerId/:paymentId', auth, role.check(ROLES.Admin), async (r
                 await invoice.save();
             }
         }
+
+        // Recalculate customer's due based on ledger calculation
+        // This ensures the customer's due matches the ledger's running balance
+        const customerWithInvoices = await Customer.findById(customerId)
+            .populate({
+                path: 'purchase_history',
+                select: 'subTotal previousDue discount paid created'
+            });
+
+        // Calculate running balance using the same logic as ledger endpoint
+        let runningBalance = 0;
+        let isFirstInvoice = true;
+
+        // Sort invoices by date
+        const sortedInvoices = (customerWithInvoices.purchase_history || [])
+            .filter(inv => inv)
+            .sort((a, b) => new Date(a.created || 0) - new Date(b.created || 0));
+
+        // Calculate balance from invoices
+        for (const invoice of sortedInvoices) {
+            // For the first invoice, include previousDue as opening balance
+            if (isFirstInvoice && invoice.previousDue > 0) {
+                runningBalance += invoice.previousDue;
+                isFirstInvoice = false;
+            }
+
+            // New amount from this invoice = subTotal - discount - paid
+            const discount = invoice.discount || 0;
+            const newAmount = (invoice.subTotal || 0) - discount - (invoice.paid || 0);
+            runningBalance += newAmount;
+        }
+
+        // Subtract all remaining payments
+        const allPayments = customerWithInvoices.payment_history || [];
+        for (const p of allPayments) {
+            runningBalance -= p.amount || 0;
+        }
+
+        // Update customer's due to match ledger balance
+        customerWithInvoices.due = runningBalance;
+        await customerWithInvoices.save();
 
         res.status(200).json({
             success: true,

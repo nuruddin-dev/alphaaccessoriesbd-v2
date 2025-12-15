@@ -1,4 +1,5 @@
 import React, { Component } from 'react';
+import { Link } from 'react-router-dom';
 import Modal from 'react-modal';
 import axios from 'axios';
 import { API_URL } from '../../../constants';
@@ -248,7 +249,21 @@ class CustomerLedgerModal extends Component {
                                                             Payment
                                                         </span>
                                                     )}
-                                                    <span>{entry.description}</span>
+                                                    {entry.type === 'invoice' ? (
+                                                        <Link
+                                                            to={`/dashboard/invoice/${entry.invoiceNumber}`}
+                                                            style={{
+                                                                color: '#2563eb',
+                                                                textDecoration: 'none',
+                                                                fontWeight: 500
+                                                            }}
+                                                            title="View Invoice"
+                                                        >
+                                                            {entry.description}
+                                                        </Link>
+                                                    ) : (
+                                                        <span>{entry.description}</span>
+                                                    )}
                                                     {entry.type === 'invoice' && (
                                                         <span style={{ color: '#94a3b8', fontSize: '12px' }}>
                                                             (SubTotal: ৳{entry.subTotal}, Paid: ৳{entry.paid})

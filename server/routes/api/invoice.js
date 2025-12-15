@@ -181,7 +181,7 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
 
     const savedInvoice = await invoice.save();
 
-    // Update customer's purchase history and due amount if a customer is associated
+    // Update customer's purchase history and recalculate due amount if a customer is associated
     if (customer) {
       const customerDoc = await Customer.findById(customer);
       if (customerDoc) {
@@ -189,9 +189,10 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
           customerDoc.purchase_history = [];
         }
         customerDoc.purchase_history.push(savedInvoice._id);
-        // Increment the customer's due amount by the invoice's due (not replace)
-        customerDoc.due = (customerDoc.due || 0) + (due || 0);
         await customerDoc.save();
+
+        // Recalculate customer's due based on ledger calculation
+        await recalculateCustomerDue(customer);
       }
     } else if (customerName && customerPhone) {
       // Create a new customer if customer details are provided but no customer ID
@@ -334,7 +335,7 @@ router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
       new: true
     });
 
-    // If customer has changed, update both customers' purchase histories and due amounts
+    // If customer has changed, update both customers' purchase histories and recalculate dues
     if (
       newCustomerId &&
       previousCustomerId &&
@@ -342,26 +343,21 @@ router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
     ) {
       // Remove invoice from previous customer's history
       await Customer.findByIdAndUpdate(previousCustomerId, {
-        $pull: { purchase_history: invoiceId },
-        $inc: { due: -existingInvoice.due } // Reduce the previous due
+        $pull: { purchase_history: invoiceId }
       });
 
       // Add invoice to new customer's history
       await Customer.findByIdAndUpdate(newCustomerId, {
-        $addToSet: { purchase_history: invoiceId },
-        $inc: { due: update.due || 0 } // Add the new due
+        $addToSet: { purchase_history: invoiceId }
       });
+
+      // Recalculate both customers' dues
+      await recalculateCustomerDue(previousCustomerId);
+      await recalculateCustomerDue(newCustomerId);
     }
-    // If customer hasn't changed but due amount has
-    else if (
-      previousCustomerId &&
-      update.due !== undefined &&
-      update.due !== existingInvoice.due
-    ) {
-      const dueDifference = update.due - existingInvoice.due;
-      await Customer.findByIdAndUpdate(previousCustomerId, {
-        $inc: { due: dueDifference }
-      });
+    // If customer hasn't changed, just recalculate their due
+    else if (previousCustomerId) {
+      await recalculateCustomerDue(previousCustomerId);
     }
 
     res.status(200).json({
@@ -412,13 +408,19 @@ router.delete('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
 
     // If this invoice is associated with a customer, update the customer
     if (invoice.customer) {
-      await Customer.findByIdAndUpdate(invoice.customer, {
-        $pull: { purchase_history: invoiceId },
-        $inc: { due: -invoice.due } // Reduce the customer's due amount
+      const customerId = invoice.customer;
+      await Customer.findByIdAndUpdate(customerId, {
+        $pull: { purchase_history: invoiceId }
       });
-    }
 
-    await Invoice.deleteOne({ _id: invoiceId });
+      // Delete the invoice first, then recalculate
+      await Invoice.deleteOne({ _id: invoiceId });
+
+      // Recalculate customer's due
+      await recalculateCustomerDue(customerId);
+    } else {
+      await Invoice.deleteOne({ _id: invoiceId });
+    }
 
     res.status(200).json({
       success: true,
@@ -498,5 +500,58 @@ const updateProductStock = async (items, operation) => {
 
   if (bulkOps.length > 0) {
     await Product.bulkWrite(bulkOps);
+  }
+};
+
+/**
+ * Recalculates a customer's due amount based on all their invoices and payments.
+ * This ensures the customer's due field always matches the ledger's running balance.
+ */
+const recalculateCustomerDue = async (customerId) => {
+  if (!customerId) return;
+
+  try {
+    const customerWithInvoices = await Customer.findById(customerId)
+      .populate({
+        path: 'purchase_history',
+        select: 'subTotal previousDue discount paid created'
+      });
+
+    if (!customerWithInvoices) return;
+
+    // Calculate running balance using the same logic as ledger endpoint
+    let runningBalance = 0;
+    let isFirstInvoice = true;
+
+    // Sort invoices by date
+    const sortedInvoices = (customerWithInvoices.purchase_history || [])
+      .filter(inv => inv)
+      .sort((a, b) => new Date(a.created || 0) - new Date(b.created || 0));
+
+    // Calculate balance from invoices
+    for (const invoice of sortedInvoices) {
+      // For the first invoice, include previousDue as opening balance
+      if (isFirstInvoice && invoice.previousDue > 0) {
+        runningBalance += invoice.previousDue;
+        isFirstInvoice = false;
+      }
+
+      // New amount from this invoice = subTotal - discount - paid
+      const discount = invoice.discount || 0;
+      const newAmount = (invoice.subTotal || 0) - discount - (invoice.paid || 0);
+      runningBalance += newAmount;
+    }
+
+    // Subtract all payments
+    const allPayments = customerWithInvoices.payment_history || [];
+    for (const payment of allPayments) {
+      runningBalance -= payment.amount || 0;
+    }
+
+    // Update customer's due to match ledger balance
+    customerWithInvoices.due = runningBalance;
+    await customerWithInvoices.save();
+  } catch (error) {
+    console.error('Error recalculating customer due:', error);
   }
 };

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTable, useSortBy } from 'react-table';
-import { formatDate } from '../../../utils/date';
 import axios from 'axios';
 import { API_URL } from '../../../constants';
 import PaymentModal from '../PaymentModal';
@@ -30,7 +29,7 @@ const CustomerTable = ({ customers, history }) => {
         address: customer.address || '',
         due: customer.due,
         purchaseHistory: customer.purchase_history, // Contains invoice IDs
-        created: formatDate(customer?.created),
+        created: customer?.created ? formatShortDate(customer.created) : '',
         createdRaw: customer?.created ? new Date(customer.created).getTime() : 0 // Raw timestamp for sorting
       })),
     [safeCustomers]
@@ -53,7 +52,12 @@ const CustomerTable = ({ customers, history }) => {
       },
       {
         Header: 'Due Amount',
-        accessor: 'due'
+        accessor: 'due',
+        sortType: (rowA, rowB) => {
+          const dueA = rowA.original.due || 0;
+          const dueB = rowB.original.due || 0;
+          return dueA - dueB;
+        }
       },
       {
         Header: 'Purchase History',
@@ -124,8 +128,8 @@ const CustomerTable = ({ customers, history }) => {
         initialState: {
           sortBy: [
             {
-              id: 'created',
-              desc: true // Sort by newest first
+              id: 'due',
+              desc: true // Sort by highest due first
             }
           ]
         }
@@ -289,6 +293,15 @@ const CustomerTable = ({ customers, history }) => {
       />
     </div>
   );
+};
+
+// Short date format for table display (DD-MM-YYYY)
+const formatShortDate = isoString => {
+  const date = new Date(isoString);
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}-${month}-${year}`;
 };
 
 const formatDateTime = isoString => {
