@@ -1,4 +1,5 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const chalk = require('chalk');
 const cors = require('cors');
@@ -11,8 +12,6 @@ const setupDB = require('./utils/db');
 
 const { port } = keys;
 const app = express();
-
-const path = require('path');
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());

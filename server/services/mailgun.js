@@ -7,13 +7,18 @@ const { key, domain, sender } = keys.mailgun;
 
 class MailgunService {
   init() {
+    if (!key || !domain) {
+      return null;
+    }
+
     try {
       return new Mailgun({
         apiKey: key,
         domain: domain
       });
     } catch (error) {
-      console.warn('Missing mailgun keys');
+      console.warn('Error initializing mailgun', error);
+      return null;
     }
   }
 }
@@ -21,6 +26,10 @@ class MailgunService {
 const mailgun = new MailgunService().init();
 
 exports.sendEmail = async (email, type, host, data) => {
+  if (!mailgun) {
+    return;
+  }
+
   try {
     const message = prepareTemplate(type, host, data);
 
