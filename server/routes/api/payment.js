@@ -82,9 +82,11 @@ router.get('/ledger/:customerId', auth, async (req, res) => {
         ledgerEntries.forEach(entry => {
             if (entry.type === 'invoice') {
                 // For the first invoice, include the previousDue as the opening balance
-                if (isFirstInvoice && entry.previousDue > 0) {
-                    runningBalance += entry.previousDue;
-                    entry.openingBalance = entry.previousDue;
+                if (isFirstInvoice) {
+                    if (entry.previousDue > 0) {
+                        runningBalance += entry.previousDue;
+                        entry.openingBalance = entry.previousDue;
+                    }
                     isFirstInvoice = false;
                 }
 
@@ -142,6 +144,68 @@ router.get('/customer/:customerId', auth, async (req, res) => {
             payments: customer.payment_history || []
         });
     } catch (error) {
+        res.status(400).json({
+            error: 'Your request could not be processed. Please try again.'
+        });
+    }
+});
+
+// @route GET api/payment/check-ledger-discrepancies
+// @desc Check for discrepancies between customer due and ledger balance
+// @access Private
+router.get('/check-ledger-discrepancies', auth, role.check(ROLES.Admin), async (req, res) => {
+    try {
+        const allCustomers = await Customer.find({})
+            .populate({
+                path: 'purchase_history',
+                select: 'subTotal previousDue discount paid created'
+            })
+            .select('name phoneNumber due purchase_history payment_history');
+
+        const discrepancies = [];
+
+        for (const customer of allCustomers) {
+            let runningBalance = 0;
+            let isFirstInvoice = true;
+
+            const sortedInvoices = (customer.purchase_history || [])
+                .filter(inv => inv)
+                .sort((a, b) => new Date(a.created || 0) - new Date(b.created || 0));
+
+            for (const invoice of sortedInvoices) {
+                if (isFirstInvoice) {
+                    if (invoice.previousDue > 0) {
+                        runningBalance += invoice.previousDue;
+                    }
+                    isFirstInvoice = false;
+                }
+                const discount = invoice.discount || 0;
+                const newAmount = (invoice.subTotal || 0) - discount - (invoice.paid || 0);
+                runningBalance += newAmount;
+            }
+
+            const allPayments = customer.payment_history || [];
+            for (const payment of allPayments) {
+                runningBalance -= payment.amount || 0;
+            }
+
+            // Check difference
+            if (Math.abs(runningBalance - (customer.due || 0)) > 0.1) {
+                discrepancies.push({
+                    _id: customer._id,
+                    name: customer.name,
+                    phoneNumber: customer.phoneNumber,
+                    storedDue: customer.due,
+                    calculatedDue: runningBalance,
+                    difference: Math.abs(runningBalance - (customer.due || 0))
+                });
+            }
+        }
+
+        res.status(200).json({ discrepancies });
+
+    } catch (error) {
+        console.error('Error checking discrepancies:', error);
         res.status(400).json({
             error: 'Your request could not be processed. Please try again.'
         });
@@ -214,8 +278,10 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
         // Calculate balance from invoices
         for (const invoice of sortedInvoices) {
             // For the first invoice, include previousDue as opening balance
-            if (isFirstInvoice && invoice.previousDue > 0) {
-                runningBalance += invoice.previousDue;
+            if (isFirstInvoice) {
+                if (invoice.previousDue > 0) {
+                    runningBalance += invoice.previousDue;
+                }
                 isFirstInvoice = false;
             }
 

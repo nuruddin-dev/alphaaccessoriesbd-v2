@@ -28,9 +28,11 @@ import Wishlist from '../../../containers/WishList';
 import Invoice from '../../../containers/Invoice';
 import Customer from '../../../containers/Customer';
 import MyShop from '../../../containers/MyShop';
+import AccountsManager from '../../../containers/AccountsManager';
 
 const Admin = props => {
   const location = useLocation();
+  const [isCollapsed, setIsCollapsed] = React.useState(false);
 
   // Check if the current route is /dashboard/orderNows
   const isOrderNowSelected = location.pathname === '/dashboard/orderNows';
@@ -38,22 +40,44 @@ const Admin = props => {
 
   return (
     <div className='admin'>
-      <Row>
-        {!(isOrderNowSelected || isInvoiceSelected) && ( // Conditionally render the first column
-          <Col xs='12' md='5' xl='3'>
-            <AccountMenu {...props} />
-          </Col>
+      <div className='d-flex flex-column flex-md-row' style={{ minHeight: '100vh' }}>
+        {!(isOrderNowSelected || isInvoiceSelected) && (
+          <>
+            {/* Desktop Sidebar */}
+            <div
+              className={`d-none d-md-block border-right bg-white`}
+              style={{
+                width: isCollapsed ? '80px' : '260px',
+                minWidth: isCollapsed ? '80px' : '260px',
+                transition: 'all 0.3s ease',
+                position: 'sticky',
+                top: '0',
+                height: '100vh',
+                overflow: 'hidden',
+                zIndex: 100
+              }}
+            >
+              <AccountMenu
+                {...props}
+                isCollapsed={isCollapsed}
+                toggleCollapse={() => setIsCollapsed(!isCollapsed)}
+                isMobile={false}
+              />
+            </div>
+
+            {/* Mobile Sidebar (Original behavior) */}
+            <div className='d-block d-md-none w-100 mb-3'>
+              <AccountMenu {...props} isMobile={true} />
+            </div>
+          </>
         )}
 
-        <Col
-          xs='12'
-          md={isOrderNowSelected || isInvoiceSelected ? '12' : '7'}
-          xl={isOrderNowSelected || isInvoiceSelected ? '12' : '9'}
-        >
-          <div className='panel-body'>
+        <div className='flex-grow-1 p-3' style={{ minWidth: 0, backgroundColor: '#f5f7fb' }}>
+          <div className='panel-body bg-transparent shadow-none p-0'>
             <Switch>
               <Route exact path='/dashboard' component={Account} />
               <Route path='/dashboard/invoice' component={Invoice} />
+              <Route path='/dashboard/accounts' component={AccountsManager} />
               <Route path='/dashboard/myshop' component={MyShop} />
               <Route path='/dashboard/customer' component={Customer} />
               <Route path='/dashboard/security' component={AccountSecurity} />
@@ -71,8 +95,8 @@ const Admin = props => {
               <Route path='*' component={Page404} />
             </Switch>
           </div>
-        </Col>
-      </Row>
+        </div>
+      </div>
     </div>
   );
 };

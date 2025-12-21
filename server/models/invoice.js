@@ -80,9 +80,24 @@ const InvoiceSchema = new Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['cash', 'bank', 'bkash', 'nagad'],
+    enum: ['cash', 'bank', 'bkash', 'nagad', 'split'],
     default: 'cash'
   },
+  payments: [
+    {
+      account: {
+        type: Schema.Types.ObjectId,
+        ref: 'Account'
+      },
+      amount: {
+        type: Number,
+        required: true
+      },
+      paymentMethod: {
+        type: String // Optional, for reference (e.g. 'bkash', 'bank')
+      }
+    }
+  ],
   notes: {
     type: String
   },

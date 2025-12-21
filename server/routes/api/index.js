@@ -81,4 +81,9 @@ router.use('/dashboard', dashboardRoutes);
 const paymentRoutes = require('./payment');
 router.use('/payment', paymentRoutes);
 
+// Account routes
+const accountRoutes = require('./account');
+router.use('/account', accountRoutes);
+
+
 module.exports = router;

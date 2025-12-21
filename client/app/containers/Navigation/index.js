@@ -11,6 +11,7 @@ import { Link, NavLink as ActiveLink, withRouter } from 'react-router-dom';
 import Autosuggest from 'react-autosuggest';
 import AutosuggestHighlightMatch from 'autosuggest-highlight/match';
 import AutosuggestHighlightParse from 'autosuggest-highlight/parse';
+import { ROLES } from '../../constants';
 import { getImagePath } from '../../utils';
 import {
   Container,
@@ -121,11 +122,10 @@ class Navigation extends React.PureComponent {
           <img
             loading='lazy'
             className='item-image'
-            src={`${
-              suggestion.imageUrl
+            src={`${suggestion.imageUrl
                 ? suggestion.imageUrl
                 : '/images/placeholder-image.png'
-            }`}
+              }`}
           />
           <div>
             <Container>
@@ -187,94 +187,96 @@ class Navigation extends React.PureComponent {
     return (
       <header className='header fixed-mobile-header'>
         {/* ======= Top Div (information) ======= */}
-        <div className='header-info'>
-          {/* <Container> */}
-          <Row className='p-0 m-0'>
-            <Col
-              lg={{ size: 3, order: 1 }}
-              className='text-center d-none d-lg-block'
-            >
-              <i className='fa fa-truck' />
-              <span>Cash On Delivery</span>
-            </Col>
-            <Col
-              lg={{ size: 3, order: 2 }}
-              md={{ size: 4, order: 2 }}
-              className='text-center d-none d-md-block'
-            >
-              <i className='fa fa-facebook' />
-              <a
-                href='https://www.facebook.com/alphaaccessorie'
-                target='_blank'
-                className='header-top-anchor'
+        {(!user || user.role !== ROLES.Admin) && (
+          <div className='header-info'>
+            {/* <Container> */}
+            <Row className='p-0 m-0'>
+              <Col
+                lg={{ size: 3, order: 1 }}
+                className='text-center d-none d-lg-block'
               >
-                Facebook
-              </a>
-            </Col>
-            <Col
-              lg={{ size: 3, order: 3 }}
-              md={{ size: 4, order: 3 }}
-              className='text-center d-none d-md-block'
-            >
-              <i className='fa fa-youtube' />
-              <a
-                href='https://www.youtube.com/@alphaaccessory'
-                target='_blank'
-                className='header-top-anchor'
+                <i className='fa fa-truck' />
+                <span>Cash On Delivery</span>
+              </Col>
+              <Col
+                lg={{ size: 3, order: 2 }}
+                md={{ size: 4, order: 2 }}
+                className='text-center d-none d-md-block'
               >
-                YouTube
-              </a>{' '}
-            </Col>
-            <Col
-              lg={{ size: 3, order: 4 }}
-              md={{ size: 4, order: 4 }}
-              className='text-center d-none d-md-block'
-            >
-              <i className='fa fa-phone' />
-              <span>Call us 01602786765</span>
-            </Col>
-            <Col xs='2' className='text-center d-block d-md-none'>
-              <a
-                href='fb://page/alphaaccessorie'
-                onClick={e => {
-                  e.preventDefault();
-                  window.open(
-                    'https://www.facebook.com/alphaaccessorie',
-                    '_blank'
-                  );
-                }}
+                <i className='fa fa-facebook' />
+                <a
+                  href='https://www.facebook.com/alphaaccessorie'
+                  target='_blank'
+                  className='header-top-anchor'
+                >
+                  Facebook
+                </a>
+              </Col>
+              <Col
+                lg={{ size: 3, order: 3 }}
+                md={{ size: 4, order: 3 }}
+                className='text-center d-none d-md-block'
               >
-                <i className='fa fa-facebook'></i>
-              </a>
-            </Col>
-            <Col xs='2' className='text-center d-block d-md-none'>
-              <a
-                href='youtube://@alphaaccessory'
-                onClick={e => {
-                  e.preventDefault();
-                  window.open(
-                    'https://www.youtube.com/@alphaaccessory',
-                    '_blank'
-                  );
-                }}
+                <i className='fa fa-youtube' />
+                <a
+                  href='https://www.youtube.com/@alphaaccessory'
+                  target='_blank'
+                  className='header-top-anchor'
+                >
+                  YouTube
+                </a>{' '}
+              </Col>
+              <Col
+                lg={{ size: 3, order: 4 }}
+                md={{ size: 4, order: 4 }}
+                className='text-center d-none d-md-block'
               >
-                <i className='fa fa-youtube'></i>
-              </a>
-            </Col>
-            <Col xs='2' className='text-center d-block d-md-none'>
-              <a href='https://wa.me/+8801602786765' target='_blank'>
-                <i className='fa fa-whatsapp'></i>
-              </a>
-            </Col>
-            <Col xs='6' className='text-center d-block d-md-none'>
-              <a href='tel:+8801602786765'>
-                <i className='fa fa-phone'></i>
-                <span>01602786765</span>
-              </a>
-            </Col>
-          </Row>
-          {/* </Container> */}
-        </div>
+                <i className='fa fa-phone' />
+                <span>Call us 01602786765</span>
+              </Col>
+              <Col xs='2' className='text-center d-block d-md-none'>
+                <a
+                  href='fb://page/alphaaccessorie'
+                  onClick={e => {
+                    e.preventDefault();
+                    window.open(
+                      'https://www.facebook.com/alphaaccessorie',
+                      '_blank'
+                    );
+                  }}
+                >
+                  <i className='fa fa-facebook'></i>
+                </a>
+              </Col>
+              <Col xs='2' className='text-center d-block d-md-none'>
+                <a
+                  href='youtube://@alphaaccessory'
+                  onClick={e => {
+                    e.preventDefault();
+                    window.open(
+                      'https://www.youtube.com/@alphaaccessory',
+                      '_blank'
+                    );
+                  }}
+                >
+                  <i className='fa fa-youtube'></i>
+                </a>
+              </Col>
+              <Col xs='2' className='text-center d-block d-md-none'>
+                <a href='https://wa.me/+8801602786765' target='_blank'>
+                  <i className='fa fa-whatsapp'></i>
+                </a>
+              </Col>
+              <Col xs='6' className='text-center d-block d-md-none'>
+                <a href='tel:+8801602786765'>
+                  <i className='fa fa-phone'></i>
+                  <span>01602786765</span>
+                </a>
+              </Col>
+            </Row>
+            {/* </Container> */}
+          </div>
+        )}
 
         {/* =============================================== */}
 

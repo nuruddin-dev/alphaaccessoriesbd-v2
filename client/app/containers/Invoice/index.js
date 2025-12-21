@@ -57,7 +57,10 @@ class Invoice extends React.PureComponent {
     isLoadingProducts: false, // Track if products are being loaded
     searchResults: [], // Store server-side search results
     cachedProducts: [], // Products loaded from localStorage
-    productCacheTime: null // When products were last cached
+    productCacheTime: null, // When products were last cached
+    accounts: [], // Available accounts
+    payments: [], // [{ account: '', amount: '' }]
+    selectedAccount: '' // Default single payment account
   };
 
   // LocalStorage keys for caching
@@ -137,8 +140,27 @@ class Invoice extends React.PureComponent {
     // Check for invoice number in URL
     if (this._isMounted) {
       this.loadInvoiceFromURL();
+      this.fetchAccounts();
     }
   }
+
+  fetchAccounts = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/account`);
+      if (this._isMounted) {
+        const accounts = response.data.accounts;
+        // Find default cash account
+        const defaultCash = accounts.find(a => a.type === 'cash' || a.name.toLowerCase().includes('cash'));
+
+        this.setState({
+          accounts: accounts,
+          selectedAccount: defaultCash ? defaultCash._id : (accounts.length > 0 ? accounts[0]._id : '')
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching accounts:', error);
+    }
+  };
 
   componentDidUpdate(prevProps, prevState) {
     // Save products to cache when they're fetched from API
@@ -267,6 +289,9 @@ class Invoice extends React.PureComponent {
           due: invoice.due || 0,
           notes: invoice.notes || '',
           paymentMethod: invoice.paymentMethod || 'cash',
+          payments: invoice.payments && invoice.payments.length > 0
+            ? invoice.payments.map(p => ({ account: p.account ? p.account._id : '', amount: p.amount }))
+            : [],
           isSearchInvoice: true,
           isWholesale: invoice.isWholesale || true,
           invoiceId: invoice._id
@@ -449,9 +474,13 @@ class Invoice extends React.PureComponent {
    * Calculates the remaining due amount.
    */
   calculateRemainingDue = () => {
-    const { paid } = this.state;
+    // If payments exist, use them. Else use 'paid' state (legacy/fallback)
+    const paidAmount = this.state.payments.length > 0
+      ? this.state.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+      : (this.state.paid || 0);
+
     const grandTotal = this.calculateFinalTotal();
-    return grandTotal - paid;
+    return grandTotal - paidAmount;
   };
 
   /**
@@ -498,6 +527,41 @@ class Invoice extends React.PureComponent {
         notes,
         isWholesale
       } = this.state;
+
+      // Calculate paid from payments array if used
+      const currentPaid = this.state.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+      // Determine payment method
+      let finalPaymentMethod = paymentMethod;
+      if (this.state.payments.length > 0) {
+        finalPaymentMethod = 'split';
+      } else if (currentPaid > 0) {
+        // If paid manual amount but no split payments? 
+        // But for backward compatibility, if payments is empty, treat as 'cash' or current selection.
+      }
+
+      // If payments array is empty but paid > 0, create a single payment entry
+      let finalPayments = this.state.payments;
+      if (finalPayments.length === 0 && (paid || 0) > 0) {
+        if (this.state.selectedAccount) {
+          finalPayments = [{
+            account: this.state.selectedAccount,
+            amount: paid
+          }];
+        } else {
+          // Fallback if no account selected? Maybe alert user?
+          // alert('Please select a payment account');
+          // return false;
+          // But let's be lenient and assume they might fix it later or legacy behavior.
+          // Actually, the backend needs an account for the new system.
+          if (this.state.accounts.length > 0) {
+            finalPayments = [{
+              account: this.state.accounts[0]._id, // Default to first account
+              amount: paid
+            }];
+          }
+        }
+      }
 
       let customer = this.state.customer;
 
@@ -554,7 +618,14 @@ class Invoice extends React.PureComponent {
         previousDue: previousDue || 0,
         discount: discount || 0,
         grandTotal: this.calculateFinalTotal(),
-        paid: paid || 0,
+        paid: this.state.payments.length > 0 ? currentPaid : (paid || 0),
+        due: this.calculateRemainingDue(),
+        paymentMethod: finalPaymentMethod || 'cash',
+        grandTotal: this.calculateFinalTotal(),
+        paid: finalPayments.length > 0 ? finalPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) : (paid || 0),
+        due: this.calculateRemainingDue(),
+        paymentMethod: finalPayments.length > 1 ? 'split' : (paymentMethod || 'cash'),
+        payments: finalPayments,
         due: this.calculateRemainingDue(),
         paymentMethod: paymentMethod || 'cash',
         notes: notes || '',
@@ -1596,7 +1667,32 @@ class Invoice extends React.PureComponent {
       filteredCustomers: [],
       selectedCustomerIndex: 0,
       isStockModalOpen: false, // Reset stock modal state
-      isInvoiceListModalOpen: false // Reset invoice list modal state
+      isInvoiceListModalOpen: false, // Reset invoice list modal state
+      payments: []
+    });
+  };
+
+  // Payment Handlers
+  handleAddPayment = () => {
+    this.setState(prevState => ({
+      payments: [...prevState.payments, { account: '', amount: '' }]
+    }));
+  };
+
+  handleRemovePayment = (index) => {
+    this.setState(prevState => {
+      const newPayments = [...prevState.payments];
+      newPayments.splice(index, 1);
+      return { payments: newPayments };
+    });
+  };
+
+  handlePaymentChange = (index, field, value) => {
+    this.setState(prevState => {
+      const newPayments = [...prevState.payments];
+      newPayments[index] = { ...newPayments[index], [field]: value };
+      // If amount changed, we might want to update 'paid' state for display immediately or just use calculated
+      return { payments: newPayments, isPaidChanged: true };
     });
   };
 
@@ -2123,35 +2219,89 @@ class Invoice extends React.PureComponent {
               {/* Right: Invoice and Customer Information */}
               <div className="invoice-info-container">
                 <div style={infoBoxStyle}>
-                  {/* Invoice Number and Payment Method */}
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <div style={{ flex: 1 }}>
-                      <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Invoice Number:</label>
-                      <input
-                        type='text'
-                        style={inputStyle}
-                        value={invoiceInfo.number}
-                        onChange={e =>
-                          this.handleInvoiceInfoChange('number', e.target.value)
-                        }
-                        placeholder='Enter Invoice Number'
-                      />
+                  {/* Invoice Number and Payment Configuration */}
+                  <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Invoice Number:</label>
+                        <input
+                          type='text'
+                          style={inputStyle}
+                          value={invoiceInfo.number}
+                          onChange={e =>
+                            this.handleInvoiceInfoChange('number', e.target.value)
+                          }
+                          placeholder='Enter Invoice Number'
+                        />
+                      </div>
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Payment Method:</label>
-                      <select
-                        style={inputStyle}
-                        value={this.state.paymentMethod}
-                        onChange={e =>
-                          this.setState({ paymentMethod: e.target.value })
-                        }
-                      >
-                        <option value='cash'>Cash</option>
-                        <option value='bank'>Bank Transfer</option>
-                        <option value='bkash'>Bkash</option>
-                        <option value='nagad'>Nagad</option>
-                      </select>
-                    </div>
+
+                    {/* Payments Section */}
+                    {this.state.payments.length > 0 ? (
+                      <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '8px' }}>
+                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '11px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                          Payments
+                          <button
+                            onClick={this.handleAddPayment}
+                            style={{
+                              border: 'none', background: 'none', color: '#3b82f6',
+                              cursor: 'pointer', float: 'right', fontSize: '11px', fontWeight: 600
+                            }}
+                          >
+                            + Add
+                          </button>
+                        </label>
+                        {this.state.payments.map((payment, idx) => (
+                          <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
+                            <select
+                              style={{ ...inputStyle, flex: 2 }}
+                              value={payment.account}
+                              onChange={(e) => this.handlePaymentChange(idx, 'account', e.target.value)}
+                            >
+                              <option value="">Select Account</option>
+                              {this.state.accounts.map(acc => (
+                                <option key={acc._id} value={acc._id}>{acc.name} ({acc.type})</option>
+                              ))}
+                            </select>
+                            <input
+                              type="number"
+                              style={{ ...inputStyle, flex: 1 }}
+                              placeholder="Amount"
+                              value={payment.amount}
+                              onChange={(e) => this.handlePaymentChange(idx, 'amount', e.target.value)}
+                            />
+                            <button
+                              onClick={() => this.handleRemovePayment(idx)}
+                              style={{ border: 'none', background: '#fee2e2', color: '#ef4444', borderRadius: '4px', cursor: 'pointer', padding: '0 8px' }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                          Payment Account:
+                          <span
+                            onClick={this.handleAddPayment}
+                            style={{ float: 'right', color: '#3b82f6', cursor: 'pointer', fontSize: '10px' }}
+                          >
+                            Multi-Pay
+                          </span>
+                        </label>
+                        <select
+                          style={inputStyle}
+                          value={this.state.selectedAccount}
+                          onChange={e => this.setState({ selectedAccount: e.target.value })}
+                        >
+                          <option value="">Select Account</option>
+                          {this.state.accounts.map(acc => (
+                            <option key={acc._id} value={acc._id}>{acc.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
 
                   {/* Date and Created By */}
@@ -2321,14 +2471,18 @@ class Invoice extends React.PureComponent {
                         type='number'
                         min='0'
                         step='1'
-                        style={inputStyle}
-                        value={this.state.paid || 0}
-                        onChange={e =>
-                          this.setState({
-                            isPaidChanged: true,
-                            paid: parseFloat(e.target.value) || 0
-                          })
-                        }
+                        style={this.state.payments.length > 0 ? { ...inputStyle, background: '#f8fafc' } : inputStyle}
+                        value={this.state.payments.length > 0 ? this.state.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) : (this.state.paid)}
+                        onChange={e => {
+                          if (this.state.payments.length === 0) {
+                            this.setState({
+                              isPaidChanged: true,
+                              paid: e.target.value // Keep as string to allow empty
+                            })
+                          }
+                        }}
+                        readOnly={this.state.payments.length > 0}
+                        placeholder="0"
                       />
                     </div>
                     <div style={{ flex: 1 }}>

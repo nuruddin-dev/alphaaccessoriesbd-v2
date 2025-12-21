@@ -6,6 +6,8 @@ const Product = require('../../models/product');
 const auth = require('../../middleware/auth');
 const role = require('../../middleware/role');
 const { ROLES } = require('../../constants');
+const Account = require('../../models/account');
+const Transaction = require('../../models/transaction');
 
 // @route GET api/invoice
 // @desc Get all invoices
@@ -33,6 +35,7 @@ router.get('/', auth, async (req, res) => {
 
     const invoices = await Invoice.find(query)
       .populate('customer', 'name phoneNumber')
+      .populate('payments.account', 'name')
       .sort({ created: -1 });
 
     res.status(200).json({
@@ -53,7 +56,8 @@ router.get('/:id', auth, async (req, res) => {
     const invoiceId = req.params.id;
 
     const invoice = await Invoice.findById(invoiceId)
-      .populate('customer', 'name phoneNumber due');
+      .populate('customer', 'name phoneNumber due')
+      .populate('payments.account', 'name');
 
     if (!invoice) {
       return res.status(404).json({
@@ -79,7 +83,8 @@ router.get('/number/:invoiceNumber', auth, async (req, res) => {
     const invoiceNumber = req.params.invoiceNumber;
 
     const invoice = await Invoice.findOne({ invoiceNumber })
-      .populate('customer', 'name phoneNumber due');
+      .populate('customer', 'name phoneNumber due')
+      .populate('payments.account', 'name');
 
     if (!invoice) {
       return res.status(404).json({
@@ -116,6 +121,7 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
       paid,
       due,
       paymentMethod,
+      payments, // NEW: Array of { account, amount }
       notes,
       isWholesale
     } = req.body;
@@ -174,7 +180,9 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
       grandTotal: grandTotal, // Use frontend value
       paid: paid || 0,
       due: due, // Use frontend value
+      due: due, // Use frontend value
       paymentMethod: paymentMethod || 'cash',
+      payments: payments || [], // Save payments array
       notes,
       isWholesale: isWholesale
     });
@@ -221,6 +229,30 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
 
     // Update product stock
     await updateProductStock(enrichedItems, 'add');
+
+    // Handle Account Payments (New System)
+    if (payments && payments.length > 0) {
+      for (const p of payments) {
+        if (p.amount > 0 && p.account) {
+          const acc = await Account.findById(p.account);
+          if (acc) {
+            acc.balance += Number(p.amount);
+            await acc.save();
+
+            const trans = new Transaction({
+              account: acc._id,
+              type: 'credit',
+              amount: p.amount,
+              reference: `Invoice #${savedInvoice.invoiceNumber}`,
+              referenceId: savedInvoice._id,
+              description: `Payment for Invoice #${savedInvoice.invoiceNumber}`,
+              date: savedInvoice.created
+            });
+            await trans.save();
+          }
+        }
+      }
+    }
 
   } catch (error) {
     console.error('Error creating invoice:', error);
@@ -330,6 +362,49 @@ router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
       await updateProductStock(enrichedItems, 'add');
     }
 
+    // Handle Payment Updates
+    // If payments are present in the update, full replacement of payment transactions is assumed
+    if (update.payments) {
+      // 1. Revert old transactions
+      const oldTransactions = await Transaction.find({ referenceId: invoiceId });
+      for (const trans of oldTransactions) {
+        const acc = await Account.findById(trans.account);
+        if (acc) {
+          if (trans.type === 'credit') {
+            acc.balance -= trans.amount;
+          } else {
+            acc.balance += trans.amount;
+          }
+          await acc.save();
+        }
+        await Transaction.deleteOne({ _id: trans._id });
+      }
+
+      // 2. Apply new payments
+      if (update.payments.length > 0) {
+        for (const p of update.payments) {
+          if (p.amount > 0 && p.account) {
+            const acc = await Account.findById(p.account);
+            if (acc) {
+              acc.balance += Number(p.amount);
+              await acc.save();
+
+              const trans = new Transaction({
+                account: acc._id,
+                type: 'credit',
+                amount: p.amount,
+                reference: `Invoice #${existingInvoice.invoiceNumber}`,
+                referenceId: invoiceId,
+                description: `Payment for Invoice #${existingInvoice.invoiceNumber}`,
+                date: Date.now()
+              });
+              await trans.save();
+            }
+          }
+        }
+      }
+    }
+
     // Update the invoice
     const updatedInvoice = await Invoice.findByIdAndUpdate(invoiceId, update, {
       new: true
@@ -406,6 +481,21 @@ router.delete('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
     // Revert stock changes
     await updateProductStock(invoice.items, 'remove');
 
+    // Revert Payment Transactions
+    const transactions = await Transaction.find({ referenceId: invoiceId });
+    for (const trans of transactions) {
+      const acc = await Account.findById(trans.account);
+      if (acc) {
+        if (trans.type === 'credit') {
+          acc.balance -= trans.amount;
+        } else {
+          acc.balance += trans.amount;
+        }
+        await acc.save();
+      }
+      await Transaction.deleteOne({ _id: trans._id });
+    }
+
     // If this invoice is associated with a customer, update the customer
     if (invoice.customer) {
       const customerId = invoice.customer;
@@ -442,6 +532,7 @@ router.get('/customer/:customerId', auth, async (req, res) => {
 
     const invoices = await Invoice.find({ customer: customerId })
       .populate('customer', 'name phoneNumber due')
+      .populate('payments.account', 'name')
       .sort({ created: -1 });
 
     res.status(200).json({
@@ -460,7 +551,8 @@ router.get('/invoice/:number', async (req, res) => {
 
     const invoice = await Invoice.findOne({
       invoiceNumber
-    }).populate('customer', 'name phoneNumber due');
+    }).populate('customer', 'name phoneNumber due')
+      .populate('payments.account', 'name');
 
     if (!invoice) {
       return res
@@ -531,8 +623,10 @@ const recalculateCustomerDue = async (customerId) => {
     // Calculate balance from invoices
     for (const invoice of sortedInvoices) {
       // For the first invoice, include previousDue as opening balance
-      if (isFirstInvoice && invoice.previousDue > 0) {
-        runningBalance += invoice.previousDue;
+      if (isFirstInvoice) {
+        if (invoice.previousDue > 0) {
+          runningBalance += invoice.previousDue;
+        }
         isFirstInvoice = false;
       }
 

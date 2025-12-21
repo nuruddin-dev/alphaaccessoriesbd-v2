@@ -3,12 +3,20 @@
     {
       "to": "",
       "name": "Account Details",
-      "prefix": "/dashboard"
+      "prefix": "/dashboard",
+      "icon": "fa-user"
+    },
+    {
+      "to": "/accounts",
+      "name": "Financial Accounts",
+      "prefix": "/dashboard",
+      "icon": "fa-bank"
     },
     {
       "to": "/myshop",
       "name": "My Shop",
-      "prefix": "/dashboard"
+      "prefix": "/dashboard",
+      "icon": "fa-shopping-bag"
     },
     {
       "to": "/security",
@@ -16,66 +24,79 @@
       "prefix": "/dashboard",
       "provider": [
         "Email"
-      ]
+      ],
+      "icon": "fa-lock"
     },
     {
       "to": "/address",
       "name": "Address",
-      "prefix": "/dashboard"
+      "prefix": "/dashboard",
+      "icon": "fa-map-marker"
     },
     {
       "to": "/product",
       "name": "Products",
-      "prefix": "/dashboard"
+      "prefix": "/dashboard",
+      "icon": "fa-cubes"
     },
     {
       "to": "/category",
       "name": "Categories",
-      "prefix": "/dashboard"
+      "prefix": "/dashboard",
+      "icon": "fa-list"
     },
     {
       "to": "/brand",
       "name": "Brand",
-      "prefix": "/dashboard"
+      "prefix": "/dashboard",
+      "icon": "fa-briefcase"
     },
     {
       "to": "/tag",
       "name": "Tag",
-      "prefix": "/dashboard"
+      "prefix": "/dashboard",
+      "icon": "fa-tag"
     },
     {
       "to": "/users",
       "name": "Users",
-      "prefix": "/dashboard"
+      "prefix": "/dashboard",
+      "icon": "fa-users"
     },
     {
       "to": "/merchant",
       "name": "Merchants",
-      "prefix": "/dashboard"
+      "prefix": "/dashboard",
+      "icon": "fa-user-secret"
     },
     {
       "to": "/orders",
       "name": "Orders",
-      "prefix": "/dashboard"
+      "prefix": "/dashboard",
+      "icon": "fa-clipboard"
     },
     {
       "to": "/orderNows",
       "name": "OrderNows",
-      "prefix": "/dashboard"
+      "prefix": "/dashboard",
+      "icon": "fa-bolt"
     },
     {
       "to": "/review",
       "name": "Reviews",
-      "prefix": "/dashboard"
+      "prefix": "/dashboard",
+      "icon": "fa-star"
     },
     {
       "to": "/wishlist",
       "name": "WishList",
-      "prefix": "/dashboard"
+      "prefix": "/dashboard",
+      "icon": "fa-heart"
     },
     {
       "to": "/support",
-      "name": "Support"
+      "name": "Support",
+      "icon": "fa-life-ring"
     }
   ],
   "ROLE MERCHANT": [

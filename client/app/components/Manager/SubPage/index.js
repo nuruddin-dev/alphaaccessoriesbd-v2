@@ -15,16 +15,17 @@ const SubPage = props => {
     <div className='sub-page'>
       <div className='subpage-header'>
         <h3 className='mb-0'>{title}</h3>
-        {actionTitle && (
-          <div className='action'>
+        <div className='action'>
+          {props.actionComponent}
+          {actionTitle && (
             <Button
               variant='none'
               size='sm'
               text={actionTitle}
               onClick={handleAction}
             />
-          </div>
-        )}
+          )}
+        </div>
       </div>
       <div className='subpage-body'>{children}</div>
     </div>
