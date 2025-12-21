@@ -293,9 +293,59 @@ router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
       }
     }
 
-    // Get the previous customer to update their data
+    // --- Customer Handling Logic Start ---
+    const { customerName, customerPhone } = update;
+    let finalCustomerId = update.customer; // Start with the ID provided in payload (if any)
+
+    // Case 1: No Customer ID provided, but Name/Phone are present.
+    // Create new customer and assign.
+    if (!finalCustomerId && customerName && customerPhone) {
+      const newCustomer = new Customer({
+        name: customerName,
+        phoneNumber: customerPhone,
+        purchase_history: [], // Will be added later
+        due: 0 // Will be calculated later
+      });
+      const savedCustomer = await newCustomer.save();
+      finalCustomerId = savedCustomer._id;
+    }
+    // Case 2: Customer ID provided, but Name/Phone mismatch (User wants to switch/create)
+    else if (finalCustomerId && (customerName || customerPhone)) {
+      const currentPayloadCustomer = await Customer.findById(finalCustomerId);
+      if (currentPayloadCustomer) {
+        const nameMismatch = customerName && customerName.trim() !== currentPayloadCustomer.name;
+        const phoneMismatch = customerPhone && customerPhone.trim() !== currentPayloadCustomer.phoneNumber;
+
+        if (nameMismatch || phoneMismatch) {
+          // Check if a customer exists with the NEW details (Phone number key)
+          let existingTargetCustomer = await Customer.findOne({ phoneNumber: customerPhone });
+
+          if (existingTargetCustomer) {
+            // Found existing customer, switch to them
+            finalCustomerId = existingTargetCustomer._id;
+          } else {
+            // Create new customer with new details
+            const newCustomer = new Customer({
+              name: customerName,
+              phoneNumber: customerPhone,
+              purchase_history: [],
+              due: 0
+            });
+            const savedCustomer = await newCustomer.save();
+            finalCustomerId = savedCustomer._id;
+          }
+        }
+      }
+    }
+
+    // Update the 'update' object with the determined customer ID
+    update.customer = finalCustomerId;
+
+    // Get the previous customer (from the existing invoice in DB)
     const previousCustomerId = existingInvoice.customer;
-    const newCustomerId = update.customer;
+    const newCustomerId = finalCustomerId; // This is now the definitive Data-Base ID
+
+    // --- Customer Handling Logic End ---
 
     // Enrich items with buyingPrice logic
     if (update.items && update.items.length > 0) {
@@ -428,6 +478,13 @@ router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
 
       // Recalculate both customers' dues
       await recalculateCustomerDue(previousCustomerId);
+      await recalculateCustomerDue(newCustomerId);
+    }
+    // If only new customer exists (was null before), add logic to add invoice and recalculate
+    else if (newCustomerId && !previousCustomerId) {
+      await Customer.findByIdAndUpdate(newCustomerId, {
+        $addToSet: { purchase_history: invoiceId }
+      });
       await recalculateCustomerDue(newCustomerId);
     }
     // If customer hasn't changed, just recalculate their due
