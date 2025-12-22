@@ -37,7 +37,9 @@ class AccountsManager extends React.PureComponent {
             amount: '',
             type: 'credit', // 'credit' (add) or 'debit' (withdraw)
             description: '',
-            category: ''
+            category: '',
+            toAccount: '',
+            transferFee: ''
         },
         spendingCategories: ['Snacks', 'Printer Color', 'Paper', 'Others']
     };
@@ -165,6 +167,15 @@ class AccountsManager extends React.PureComponent {
             const { account, amount, description, type, category } = this.state.newTransaction;
             if (!account || !amount) {
                 alert("Please select an account and enter an amount");
+                alert("Please select an account and enter an amount");
+                return;
+            }
+            if (type === 'transfer' && !this.state.newTransaction.toAccount) {
+                alert("Please select a destination account for transfer");
+                return;
+            }
+            if (type === 'transfer' && account === this.state.newTransaction.toAccount) {
+                alert("Source and destination accounts cannot be the same");
                 return;
             }
             await axios.post(`${API_URL}/account/transaction/add`, {
@@ -172,13 +183,17 @@ class AccountsManager extends React.PureComponent {
                 amount,
                 description,
                 type,
-                category
+                category,
+                type,
+                category,
+                toAccount: this.state.newTransaction.toAccount,
+                transferFee: this.state.newTransaction.transferFee
             });
             this.fetchAccounts();
             this.fetchTransactions();
             this.toggleAddTransactionModal();
             this.setState(prevState => ({
-                newTransaction: { ...prevState.newTransaction, amount: '', description: '', category: '' }
+                newTransaction: { ...prevState.newTransaction, amount: '', description: '', category: '', toAccount: '', transferFee: '' }
             }));
         } catch (error) {
             alert('Error adding transaction: ' + (error.response?.data?.error || error.message));
@@ -434,8 +449,67 @@ class AccountsManager extends React.PureComponent {
                             <Input type="select" name="type" value={newTransaction.type} onChange={this.handleAddTransactionChange}>
                                 <option value="credit">Income / Add Funds</option>
                                 <option value="debit">Expense / Spending</option>
+                                <option value="transfer">Transfer</option>
                             </Input>
                         </FormGroup>
+
+                        <FormGroup>
+                            <Label>{newTransaction.type === 'transfer' ? 'Transfer From' : 'Account'}</Label>
+                            <Input type="select" name="account" value={newTransaction.account} onChange={this.handleAddTransactionChange}>
+                                <option value="">Select Account</option>
+                                {accounts.map(acc => (
+                                    <option key={acc._id} value={acc._id}>{acc.name} (Tk {acc.balance})</option>
+                                ))}
+                            </Input>
+                        </FormGroup>
+
+                        {newTransaction.type === 'transfer' && (
+                            <FormGroup>
+                                <Label>Transfer To</Label>
+                                <Input type="select" name="toAccount" value={newTransaction.toAccount} onChange={this.handleAddTransactionChange}>
+                                    <option value="">Select Account</option>
+                                    {accounts.filter(a => a._id !== newTransaction.account).map(acc => (
+                                        <option key={acc._id} value={acc._id}>{acc.name} (Tk {acc.balance})</option>
+                                    ))}
+                                </Input>
+                            </FormGroup>
+                        )}
+
+                        <FormGroup>
+                            <Label>Amount</Label>
+                            <Input type="number" name="amount" value={newTransaction.amount} onChange={this.handleAddTransactionChange} />
+                        </FormGroup>
+
+                        {newTransaction.type === 'transfer' && (() => {
+                            const sourceAcc = accounts.find(a => a._id === newTransaction.account);
+                            const destAcc = accounts.find(a => a._id === newTransaction.toAccount);
+
+                            // Fee logic: Mobile to Bank OR Bank to Bank
+                            const isFeeApplicable = sourceAcc && destAcc && (
+                                // Mobile to Bank
+                                ((sourceAcc.type === 'mobile' || sourceAcc.type === 'bkash' || sourceAcc.type === 'nagad' || sourceAcc.type === 'rocket') && destAcc.type === 'bank') ||
+                                // Bank to Bank
+                                (sourceAcc.type === 'bank' && destAcc.type === 'bank')
+                            );
+
+                            return isFeeApplicable ? (
+                                <FormGroup>
+                                    <Label>Transaction Fee</Label>
+                                    <Input
+                                        type="number"
+                                        name="transferFee"
+                                        value={newTransaction.transferFee}
+                                        onChange={this.handleAddTransactionChange}
+                                        placeholder="Fee Amount"
+                                    />
+                                    <small className="text-muted">
+                                        Total Deducted from Source: Tk {((Number(newTransaction.amount) || 0) + (Number(newTransaction.transferFee) || 0)).toLocaleString()}
+                                        <br />
+                                        Deposited to Destination: Tk {(Number(newTransaction.amount) || 0).toLocaleString()}
+                                    </small>
+                                </FormGroup>
+                            ) : null;
+                        })()}
 
                         {newTransaction.type === 'debit' && (
                             <FormGroup>
@@ -454,19 +528,7 @@ class AccountsManager extends React.PureComponent {
                             </FormGroup>
                         )}
 
-                        <FormGroup>
-                            <Label>Account</Label>
-                            <Input type="select" name="account" value={newTransaction.account} onChange={this.handleAddTransactionChange}>
-                                <option value="">Select Account</option>
-                                {accounts.map(acc => (
-                                    <option key={acc._id} value={acc._id}>{acc.name} (Tk {acc.balance})</option>
-                                ))}
-                            </Input>
-                        </FormGroup>
-                        <FormGroup>
-                            <Label>Amount</Label>
-                            <Input type="number" name="amount" value={newTransaction.amount} onChange={this.handleAddTransactionChange} />
-                        </FormGroup>
+
                         <FormGroup>
                             <Label>Description {newTransaction.category === 'Others' ? '(Required)' : '(Optional)'}</Label>
                             <Input
@@ -480,7 +542,7 @@ class AccountsManager extends React.PureComponent {
                     <ModalFooter>
                         <Button color="secondary" onClick={this.toggleAddTransactionModal}>Cancel</Button>
                         <Button color="success" onClick={this.submitAddTransaction}>
-                            {newTransaction.type === 'credit' ? 'Add Funds' : 'Record Expense'}
+                            {newTransaction.type === 'credit' ? 'Add Funds' : (newTransaction.type === 'transfer' ? 'Transfer Funds' : 'Record Expense')}
                         </Button>
                     </ModalFooter>
                 </Modal>

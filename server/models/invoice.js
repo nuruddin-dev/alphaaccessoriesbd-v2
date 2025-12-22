@@ -93,11 +93,19 @@ const InvoiceSchema = new Schema({
         type: Number,
         required: true
       },
+      fee: {
+        type: Number,
+        default: 0
+      },
       paymentMethod: {
         type: String // Optional, for reference (e.g. 'bkash', 'bank')
       }
     }
   ],
+  totalFee: {
+    type: Number,
+    default: 0
+  },
   notes: {
     type: String
   },

@@ -4,6 +4,8 @@ const router = express.Router();
 // Bring in Models & Authorization
 const Customer = require('../../models/customer');
 const Invoice = require('../../models/invoice');
+const Account = require('../../models/account');
+const Transaction = require('../../models/transaction');
 const auth = require('../../middleware/auth');
 const role = require('../../middleware/role');
 const { ROLES } = require('../../constants');
@@ -62,6 +64,7 @@ router.get('/ledger/:customerId', auth, async (req, res) => {
                         : 'Due Payment',
                     amount: payment.amount,
                     paymentMethod: payment.paymentMethod,
+                    fee: payment.fee,
                     notes: payment.notes,
                     relatedInvoice: payment.relatedInvoice,
                     _id: payment._id
@@ -97,7 +100,7 @@ router.get('/ledger/:customerId', auth, async (req, res) => {
                 entry.runningBalance = runningBalance;
                 entry.newAmount = newAmount; // Store for display
             } else if (entry.type === 'payment') {
-                runningBalance -= entry.amount; // Subtract payment
+                runningBalance -= (entry.amount || 0) - (entry.fee || 0); // Subtract net payment
                 entry.runningBalance = runningBalance;
             }
         });
@@ -222,6 +225,8 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
             amount,
             relatedInvoice,
             paymentMethod,
+            account,
+            fee,
             notes,
             createdBy
         } = req.body;
@@ -246,6 +251,8 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
             date: new Date(),
             relatedInvoice: relatedInvoice || null,
             paymentMethod: paymentMethod || 'cash',
+            account: account || null,
+            fee: fee || 0,
             notes,
             createdBy: createdBy || 'Admin'
         };
@@ -294,7 +301,7 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
         // Subtract all payments
         const allPayments = customerWithInvoices.payment_history || [];
         for (const payment of allPayments) {
-            runningBalance -= payment.amount || 0;
+            runningBalance -= (payment.amount || 0) - (payment.fee || 0);
         }
 
         // Update customer's due to match ledger balance
@@ -308,6 +315,26 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
                 invoice.paid = (invoice.paid || 0) + amount;
                 invoice.due = invoice.grandTotal - invoice.paid;
                 await invoice.save();
+            }
+        }
+
+        // Handle Account Transaction if account is provided
+        if (account) {
+            const accountDoc = await Account.findById(account);
+            if (accountDoc) {
+                accountDoc.balance += Number(amount);
+                await accountDoc.save();
+
+                const transaction = new Transaction({
+                    account: accountDoc._id,
+                    type: 'credit',
+                    amount: Number(amount),
+                    reference: customerDoc.name, // Correct usage of customerDoc
+                    referenceId: customerDoc._id,
+                    description: `Payment from ${customerDoc.name} ${relatedInvoice ? '(Invoice #' + relatedInvoice + ')' : ''}`,
+                    date: new Date()
+                });
+                await transaction.save();
             }
         }
 
@@ -396,7 +423,7 @@ router.delete('/:customerId/:paymentId', auth, role.check(ROLES.Admin), async (r
         // Subtract all remaining payments
         const allPayments = customerWithInvoices.payment_history || [];
         for (const p of allPayments) {
-            runningBalance -= p.amount || 0;
+            runningBalance -= (p.amount || 0) - (p.fee || 0);
         }
 
         // Update customer's due to match ledger balance

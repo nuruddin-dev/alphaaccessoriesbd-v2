@@ -31,7 +31,11 @@ class PaymentModal extends Component {
         super(props);
         this.state = {
             amount: '',
+            fee: '',
             paymentMethod: 'cash',
+            selectedAccount: '',
+            selectedAccountType: '',
+            accounts: [],
             notes: '',
             relatedInvoice: '',
             invoices: [],
@@ -41,8 +45,9 @@ class PaymentModal extends Component {
     }
 
     componentDidUpdate(prevProps) {
-        if (this.props.isOpen && !prevProps.isOpen && this.props.customer) {
+        if (this.props.isOpen && !prevProps.isOpen) {
             this.loadInvoices();
+            this.fetchAccounts();
         }
     }
 
@@ -83,12 +88,41 @@ class PaymentModal extends Component {
         }
     };
 
+    fetchAccounts = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/account`);
+            const accounts = response.data.accounts || [];
+
+            let initialAccountType = '';
+            if (accounts.length > 0) {
+                initialAccountType = accounts[0].type;
+            }
+
+            this.setState({
+                accounts,
+                selectedAccount: accounts.length > 0 ? accounts[0]._id : '',
+                selectedAccountType: initialAccountType
+            });
+        } catch (error) {
+            console.error('Error fetching accounts:', error);
+        }
+    };
+
     handleAmountChange = (e) => {
         this.setState({ amount: e.target.value, error: '' });
     };
 
-    handlePaymentMethodChange = (e) => {
-        this.setState({ paymentMethod: e.target.value });
+    handleAccountChange = (e) => {
+        const accountId = e.target.value;
+        const account = this.state.accounts.find(a => a._id === accountId);
+        this.setState({
+            selectedAccount: accountId,
+            selectedAccountType: account ? account.type : ''
+        });
+    };
+
+    handleFeeChange = (e) => {
+        this.setState({ fee: e.target.value });
     };
 
     handleNotesChange = (e) => {
@@ -100,7 +134,7 @@ class PaymentModal extends Component {
     };
 
     handleSubmit = async () => {
-        const { amount, paymentMethod, notes, relatedInvoice } = this.state;
+        const { amount, selectedAccount, notes, relatedInvoice } = this.state;
         const { customer, onSuccess, onRequestClose } = this.props;
 
         if (!amount || parseFloat(amount) <= 0) {
@@ -114,7 +148,8 @@ class PaymentModal extends Component {
             const response = await axios.post(`${API_URL}/payment/create`, {
                 customer: customer._id,
                 amount: parseFloat(amount),
-                paymentMethod,
+                account: selectedAccount,
+                fee: parseFloat(this.state.fee) || 0,
                 notes,
                 relatedInvoice: relatedInvoice || null
             });
@@ -123,7 +158,8 @@ class PaymentModal extends Component {
                 alert('Payment recorded successfully!');
                 this.setState({
                     amount: '',
-                    paymentMethod: 'cash',
+                    fee: '',
+                    selectedAccount: this.state.accounts.length > 0 ? this.state.accounts[0]._id : '',
                     notes: '',
                     relatedInvoice: '',
                     isLoading: false
@@ -142,7 +178,7 @@ class PaymentModal extends Component {
 
     render() {
         const { isOpen, onRequestClose, customer } = this.props;
-        const { amount, paymentMethod, notes, relatedInvoice, invoices, isLoading, error } = this.state;
+        const { amount, fee, selectedAccount, selectedAccountType, accounts, notes, relatedInvoice, invoices, isLoading, error } = this.state;
 
         const inputStyle = {
             width: '100%',
@@ -229,18 +265,38 @@ class PaymentModal extends Component {
                 </div>
 
                 <div>
-                    <label style={labelStyle}>Payment Method</label>
+                    <label style={labelStyle}>Payment Account</label>
                     <select
                         style={inputStyle}
-                        value={paymentMethod}
-                        onChange={this.handlePaymentMethodChange}
+                        value={selectedAccount}
+                        onChange={this.handleAccountChange}
                     >
-                        <option value="cash">Cash</option>
-                        <option value="bank">Bank Transfer</option>
-                        <option value="bkash">Bkash</option>
-                        <option value="nagad">Nagad</option>
+                        {accounts.map(acc => (
+                            <option key={acc._id} value={acc._id}>
+                                {acc.name} ({acc.type})
+                            </option>
+                        ))}
                     </select>
                 </div>
+
+                {/* Show Fee field if Mobile Banking */}
+                {(selectedAccountType === 'mobile' || selectedAccountType === 'bkash' || selectedAccountType === 'nagad') && (
+                    <div>
+                        <label style={labelStyle}>Transaction Fee (Included in Amount)</label>
+                        <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            style={inputStyle}
+                            value={fee}
+                            onChange={this.handleFeeChange}
+                            placeholder="Enter fee amount"
+                        />
+                        <p style={{ fontSize: '11px', color: '#64748b', marginTop: '-8px', marginBottom: '12px' }}>
+                            Net Payment = Amount - Fee (<b>৳{Math.max(0, (parseFloat(amount) || 0) - (parseFloat(fee) || 0))}</b> credit to customer)
+                        </p>
+                    </div>
+                )}
 
                 <div>
                     <label style={labelStyle}>Related Invoice (Optional)</label>

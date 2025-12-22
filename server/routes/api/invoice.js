@@ -126,6 +126,8 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
       isWholesale
     } = req.body;
 
+    const calculatedTotalFee = payments ? payments.reduce((sum, p) => sum + (Number(p.fee) || 0), 0) : 0;
+
     // Validation
     if (!invoiceNumber) {
       return res
@@ -183,6 +185,7 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
       due: due, // Use frontend value
       paymentMethod: paymentMethod || 'cash',
       payments: payments || [], // Save payments array
+      totalFee: calculatedTotalFee,
       notes,
       isWholesale: isWholesale
     });
@@ -410,6 +413,11 @@ router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
 
       // Apply stock changes for the updated invoice state
       await updateProductStock(enrichedItems, 'add');
+    }
+
+    // Calculate totalFee from payments if present in update, otherwise keep existing
+    if (update.payments) {
+      update.totalFee = update.payments.reduce((sum, p) => sum + (Number(p.fee) || 0), 0);
     }
 
     // Handle Payment Updates
@@ -663,7 +671,7 @@ const recalculateCustomerDue = async (customerId) => {
     const customerWithInvoices = await Customer.findById(customerId)
       .populate({
         path: 'purchase_history',
-        select: 'subTotal previousDue discount paid created'
+        select: 'subTotal previousDue discount paid totalFee created'
       });
 
     if (!customerWithInvoices) return;
@@ -687,9 +695,10 @@ const recalculateCustomerDue = async (customerId) => {
         isFirstInvoice = false;
       }
 
-      // New amount from this invoice = subTotal - discount - paid
+      // New amount from this invoice = subTotal - discount - (paid - totalFee)
       const discount = invoice.discount || 0;
-      const newAmount = (invoice.subTotal || 0) - discount - (invoice.paid || 0);
+      const netPaid = (invoice.paid || 0) - (invoice.totalFee || 0);
+      const newAmount = (invoice.subTotal || 0) - discount - netPaid;
       runningBalance += newAmount;
     }
 

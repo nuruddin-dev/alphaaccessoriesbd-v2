@@ -92,8 +92,8 @@ router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
 // @access Private
 router.post('/transaction/add', auth, role.check(ROLES.Admin), async (req, res) => {
     try {
-        const { account, amount, description, type } = req.body;
-        // type: 'credit' (add) or 'debit' (withdraw) - default to credit for "Add Fund"
+        const { account, amount, description, type, toAccount, transferFee } = req.body;
+        // type: 'credit' (add), 'debit' (withdraw), 'transfer'
 
         if (!account || !amount) {
             return res.status(400).json({ error: 'Account and Amount are required.' });
@@ -101,11 +101,69 @@ router.post('/transaction/add', auth, role.check(ROLES.Admin), async (req, res) 
 
         const accountDoc = await Account.findById(account);
         if (!accountDoc) {
-            return res.status(404).json({ error: 'Account not found.' });
+            return res.status(404).json({ error: 'Source Account not found.' });
         }
 
-        const transactionType = type || 'credit';
         const numAmount = Number(amount);
+        const numFee = Number(transferFee) || 0;
+
+        // Handle Transfer
+        if (type === 'transfer') {
+            if (!toAccount) {
+                return res.status(400).json({ error: 'Destination account is required for transfer.' });
+            }
+            if (account === toAccount) {
+                return res.status(400).json({ error: 'Source and destination accounts cannot be the same.' });
+            }
+
+            const toAccountDoc = await Account.findById(toAccount);
+            if (!toAccountDoc) {
+                return res.status(404).json({ error: 'Destination Account not found.' });
+            }
+
+            // Debit from Source (Amount + Fee)
+            const totalDeduction = numAmount + numFee;
+            accountDoc.balance -= totalDeduction;
+            await accountDoc.save();
+
+            const debitDesc = numFee > 0
+                ? `Transfer to ${toAccountDoc.name} (incl. Fee: ${numFee})`
+                : `Transfer to ${toAccountDoc.name}`;
+
+            const debitTrans = new Transaction({
+                account: accountDoc._id,
+                amount: totalDeduction,
+                type: 'debit',
+                reference: 'Transfer',
+                category: 'Transfer',
+                description: debitDesc
+            });
+            await debitTrans.save();
+
+            // Credit to Destination (Only Amount)
+            toAccountDoc.balance += numAmount;
+            await toAccountDoc.save();
+
+            const creditTrans = new Transaction({
+                account: toAccountDoc._id,
+                amount: numAmount,
+                type: 'credit',
+                reference: 'Transfer',
+                category: 'Transfer',
+                description: `Transfer from ${accountDoc.name}`
+            });
+            await creditTrans.save();
+
+            return res.status(200).json({
+                success: true,
+                message: 'Transfer successful!',
+                transaction: debitTrans, // Return the source transaction as primary confirmation
+                newBalance: accountDoc.balance
+            });
+        }
+
+        // Handle Standard Credit/Debit
+        const transactionType = type || 'credit';
 
         const transaction = new Transaction({
             account,

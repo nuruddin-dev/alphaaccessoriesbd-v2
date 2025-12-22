@@ -36,8 +36,15 @@ const CustomerSchema = new Schema({
       },
       paymentMethod: {
         type: String,
-        default: 'cash',
-        enum: ['cash', 'bank', 'bkash', 'nagad']
+        default: 'cash'
+      },
+      account: {
+        type: Schema.Types.ObjectId,
+        ref: 'Account'
+      },
+      fee: {
+        type: Number,
+        default: 0
       },
       notes: {
         type: String

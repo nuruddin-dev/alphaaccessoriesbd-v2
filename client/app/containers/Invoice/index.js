@@ -60,7 +60,8 @@ class Invoice extends React.PureComponent {
     productCacheTime: null, // When products were last cached
     accounts: [], // Available accounts
     payments: [], // [{ account: '', amount: '' }]
-    selectedAccount: '' // Default single payment account
+    selectedAccount: '', // Default single payment account
+    fee: '' // Fee for single payment mode
   };
 
   // LocalStorage keys for caching
@@ -290,7 +291,7 @@ class Invoice extends React.PureComponent {
           notes: invoice.notes || '',
           paymentMethod: invoice.paymentMethod || 'cash',
           payments: invoice.payments && invoice.payments.length > 0
-            ? invoice.payments.map(p => ({ account: p.account ? p.account._id : '', amount: p.amount }))
+            ? invoice.payments.map(p => ({ account: p.account ? p.account._id : '', amount: p.amount, fee: p.fee || 0 }))
             : [],
           isSearchInvoice: true,
           isWholesale: invoice.isWholesale || true,
@@ -474,13 +475,21 @@ class Invoice extends React.PureComponent {
    * Calculates the remaining due amount.
    */
   calculateRemainingDue = () => {
-    // If payments exist, use them. Else use 'paid' state (legacy/fallback)
-    const paidAmount = this.state.payments.length > 0
+    // Calculate total paid amount
+    const totalPaid = this.state.payments.length > 0
       ? this.state.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
       : (this.state.paid || 0);
 
+    // Calculate total fees
+    const totalFee = this.state.payments.length > 0
+      ? this.state.payments.reduce((sum, p) => sum + (Number(p.fee) || 0), 0)
+      : (Number(this.state.fee) || 0);
+
     const grandTotal = this.calculateFinalTotal();
-    return grandTotal - paidAmount;
+
+    // Net payment = Total Paid - Total Fee
+    // Due = Grand Total - Net Payment
+    return grandTotal - (totalPaid - totalFee);
   };
 
   /**
@@ -546,7 +555,8 @@ class Invoice extends React.PureComponent {
         if (this.state.selectedAccount) {
           finalPayments = [{
             account: this.state.selectedAccount,
-            amount: paid
+            amount: paid,
+            fee: Number(this.state.fee) || 0
           }];
         } else {
           // Fallback if no account selected? Maybe alert user?
@@ -557,7 +567,8 @@ class Invoice extends React.PureComponent {
           if (this.state.accounts.length > 0) {
             finalPayments = [{
               account: this.state.accounts[0]._id, // Default to first account
-              amount: paid
+              amount: paid,
+              fee: Number(this.state.fee) || 0
             }];
           }
         }
@@ -873,7 +884,8 @@ class Invoice extends React.PureComponent {
                 }
                 .notes-cell {
                   text-align: left !important;
-                  color: red;
+                  color: red !important;
+                  font-size: 10px;
                 }
                 .total-cell {
                   text-align: right; /* Changed back to right */
@@ -958,8 +970,7 @@ class Invoice extends React.PureComponent {
 
                     <!-- Totals section - will only appear at the end of the table -->
                     <tr class="totals-section totals-row">
-                      <td class="notes-cell" style={{ textAlign: 'left', fontWeight: 'bold' }}>${this.state.notes
-      }</td>
+                      <td class="notes-cell">${this.state.notes}</td>
                       <td colSpan="2">Total</td>
                       <td class="total-cell">${grandTotal}</td>
                     </tr>
@@ -1668,14 +1679,15 @@ class Invoice extends React.PureComponent {
       selectedCustomerIndex: 0,
       isStockModalOpen: false, // Reset stock modal state
       isInvoiceListModalOpen: false, // Reset invoice list modal state
-      payments: []
+      payments: [],
+      fee: '' // Reset fee
     });
   };
 
   // Payment Handlers
   handleAddPayment = () => {
     this.setState(prevState => ({
-      payments: [...prevState.payments, { account: '', amount: '' }]
+      payments: [...prevState.payments, { account: '', amount: '', fee: '' }]
     }));
   };
 
@@ -2251,33 +2263,49 @@ class Invoice extends React.PureComponent {
                             + Add
                           </button>
                         </label>
-                        {this.state.payments.map((payment, idx) => (
-                          <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
-                            <select
-                              style={{ ...inputStyle, flex: 2 }}
-                              value={payment.account}
-                              onChange={(e) => this.handlePaymentChange(idx, 'account', e.target.value)}
-                            >
-                              <option value="">Select Account</option>
-                              {this.state.accounts.map(acc => (
-                                <option key={acc._id} value={acc._id}>{acc.name} ({acc.type})</option>
-                              ))}
-                            </select>
-                            <input
-                              type="number"
-                              style={{ ...inputStyle, flex: 1 }}
-                              placeholder="Amount"
-                              value={payment.amount}
-                              onChange={(e) => this.handlePaymentChange(idx, 'amount', e.target.value)}
-                            />
-                            <button
-                              onClick={() => this.handleRemovePayment(idx)}
-                              style={{ border: 'none', background: '#fee2e2', color: '#ef4444', borderRadius: '4px', cursor: 'pointer', padding: '0 8px' }}
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ))}
+                        {this.state.payments.map((payment, idx) => {
+                          // Find the selected account to check its type
+                          const selectedAcc = this.state.accounts.find(a => a._id === payment.account);
+                          const isMobileBanking = selectedAcc && (selectedAcc.type === 'mobile' || selectedAcc.type === 'bkash' || selectedAcc.type === 'nagad' || selectedAcc.type === 'rocket');
+
+                          return (
+                            <div key={idx} style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
+                              <select
+                                style={{ ...inputStyle, flex: 2 }}
+                                value={payment.account}
+                                onChange={(e) => this.handlePaymentChange(idx, 'account', e.target.value)}
+                              >
+                                <option value="">Select Account</option>
+                                {this.state.accounts.map(acc => (
+                                  <option key={acc._id} value={acc._id}>{acc.name} ({acc.type})</option>
+                                ))}
+                              </select>
+                              <input
+                                type="number"
+                                style={{ ...inputStyle, flex: 1 }}
+                                placeholder="Amount"
+                                value={payment.amount}
+                                onChange={(e) => this.handlePaymentChange(idx, 'amount', e.target.value)}
+                              />
+                              {isMobileBanking && (
+                                <input
+                                  type="number"
+                                  style={{ ...inputStyle, flex: 1 }}
+                                  placeholder="Fee"
+                                  title="Transaction Fee"
+                                  value={payment.fee}
+                                  onChange={(e) => this.handlePaymentChange(idx, 'fee', e.target.value)}
+                                />
+                              )}
+                              <button
+                                onClick={() => this.handleRemovePayment(idx)}
+                                style={{ border: 'none', background: '#fee2e2', color: '#ef4444', borderRadius: '4px', cursor: 'pointer', padding: '0 8px' }}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : (
                       <div>
@@ -2290,16 +2318,32 @@ class Invoice extends React.PureComponent {
                             Multi-Pay
                           </span>
                         </label>
-                        <select
-                          style={inputStyle}
-                          value={this.state.selectedAccount}
-                          onChange={e => this.setState({ selectedAccount: e.target.value })}
-                        >
-                          <option value="">Select Account</option>
-                          {this.state.accounts.map(acc => (
-                            <option key={acc._id} value={acc._id}>{acc.name}</option>
-                          ))}
-                        </select>
+                        <div style={{ display: 'flex', gap: '5px' }}>
+                          <select
+                            style={{ ...inputStyle, flex: 2 }}
+                            value={this.state.selectedAccount}
+                            onChange={e => this.setState({ selectedAccount: e.target.value })}
+                          >
+                            <option value="">Select Account</option>
+                            {this.state.accounts.map(acc => (
+                              <option key={acc._id} value={acc._id}>{acc.name}</option>
+                            ))}
+                          </select>
+                          {(() => {
+                            const selectedAcc = this.state.accounts.find(a => a._id === this.state.selectedAccount);
+                            const isMobileBanking = selectedAcc && (selectedAcc.type === 'mobile' || selectedAcc.type === 'bkash' || selectedAcc.type === 'nagad' || selectedAcc.type === 'rocket');
+                            return isMobileBanking ? (
+                              <input
+                                type="number"
+                                style={{ ...inputStyle, flex: 1 }}
+                                placeholder="Fee"
+                                title="Transaction Fee"
+                                value={this.state.fee}
+                                onChange={(e) => this.setState({ fee: e.target.value })}
+                              />
+                            ) : null;
+                          })()}
+                        </div>
                       </div>
                     )}
                   </div>
