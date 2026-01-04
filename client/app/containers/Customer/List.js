@@ -78,10 +78,19 @@ class List extends React.PureComponent {
       />
     );
 
+    const totalDue = customers.reduce((sum, c) => sum + (c.due || 0), 0);
+
     return (
       <>
         <SubPage
-          title='Customers'
+          title={
+            <div className="d-flex align-items-center">
+              <span>Customers</span>
+              <span className="ml-3 badge badge-danger" style={{ fontSize: '14px', padding: '6px 12px' }}>
+                Total Due: ৳{totalDue.toLocaleString()}
+              </span>
+            </div>
+          }
           actionTitle='Add'
           handleAction={() => history.push('/dashboard/customer/add')}
           actionComponent={checkButton}

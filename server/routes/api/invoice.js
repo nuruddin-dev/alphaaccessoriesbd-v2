@@ -356,13 +356,8 @@ router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
       await updateProductStock(existingInvoice.items, 'remove');
 
       const enrichedItems = await Promise.all(update.items.map(async (item) => {
-        // If item has a valid buying price (snapshot exists), keep it.
-        if (item.buyingPrice && item.buyingPrice > 0) {
-          return item;
-        }
-
         // If buyingPrice is 0 or missing (old invoice or new item), fetch current price.
-        let buyingPrice = 0;
+        let buyingPrice = item.buyingPrice || 0;
         let productDoc = null;
 
         if (item.product) {
@@ -420,44 +415,53 @@ router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
       update.totalFee = update.payments.reduce((sum, p) => sum + (Number(p.fee) || 0), 0);
     }
 
-    // Handle Payment Updates
-    // If payments are present in the update, full replacement of payment transactions is assumed
+    // Handle Payment Updates - Impact only the difference
     if (update.payments) {
-      // 1. Revert old transactions
-      const oldTransactions = await Transaction.find({ referenceId: invoiceId });
-      for (const trans of oldTransactions) {
-        const acc = await Account.findById(trans.account);
-        if (acc) {
-          if (trans.type === 'credit') {
-            acc.balance -= trans.amount;
-          } else {
-            acc.balance += trans.amount;
-          }
-          await acc.save();
-        }
-        await Transaction.deleteOne({ _id: trans._id });
-      }
-
-      // 2. Apply new payments
-      if (update.payments.length > 0) {
-        for (const p of update.payments) {
-          if (p.amount > 0 && p.account) {
-            const acc = await Account.findById(p.account);
-            if (acc) {
-              acc.balance += Number(p.amount);
-              await acc.save();
-
-              const trans = new Transaction({
-                account: acc._id,
-                type: 'credit',
-                amount: p.amount,
-                reference: `Invoice #${existingInvoice.invoiceNumber}`,
-                referenceId: invoiceId,
-                description: `Payment for Invoice #${existingInvoice.invoiceNumber}`,
-                date: Date.now()
-              });
-              await trans.save();
+      // Helper to aggregate payment amounts by account ID
+      const getPaymentMap = (payments) => {
+        const map = {};
+        if (payments && Array.isArray(payments)) {
+          payments.forEach(p => {
+            const accountId = (p.account?._id || p.account)?.toString();
+            if (accountId) {
+              map[accountId] = (map[accountId] || 0) + (Number(p.amount) || 0);
             }
+          });
+        }
+        return map;
+      };
+
+      const oldPaymentsMap = getPaymentMap(existingInvoice.payments);
+      const newPaymentsMap = getPaymentMap(update.payments);
+
+      // Get all unique account IDs involved in both old and new states
+      const allAccountIds = [...new Set([...Object.keys(oldPaymentsMap), ...Object.keys(newPaymentsMap)])];
+
+      for (const accountId of allAccountIds) {
+        const oldAmount = oldPaymentsMap[accountId] || 0;
+        const newAmount = newPaymentsMap[accountId] || 0;
+        const delta = newAmount - oldAmount;
+
+        if (delta !== 0) {
+          const acc = await Account.findById(accountId);
+          if (acc) {
+            // Update Account Balance
+            acc.balance += delta;
+            await acc.save();
+
+            // Record a Transaction for the difference
+            const transaction = new Transaction({
+              account: acc._id,
+              type: delta > 0 ? 'credit' : 'debit',
+              amount: Math.abs(delta),
+              reference: `Invoice #${existingInvoice.invoiceNumber}`,
+              referenceId: invoiceId,
+              description: delta > 0
+                ? `Payment increased for Invoice #${existingInvoice.invoiceNumber}`
+                : `Payment decreased/adjusted for Invoice #${existingInvoice.invoiceNumber}`,
+              date: new Date()
+            });
+            await transaction.save();
           }
         }
       }
@@ -522,6 +526,86 @@ router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
 
   } catch (error) {
     console.error('Error updating invoice:', error);
+    res.status(400).json({
+      error: 'Your request could not be processed. Please try again.'
+    });
+  }
+});
+
+// @route DELETE api/invoice/delete-by-number
+// @desc Delete invoice by invoice number
+// @access Private
+router.delete('/delete-by-number', auth, role.check(ROLES.Admin), async (req, res) => {
+  try {
+    let { invoiceNumber } = req.body;
+    if (!invoiceNumber) {
+      invoiceNumber = req.query.invoiceNumber;
+    }
+
+    if (!invoiceNumber) {
+      return res.status(400).json({ error: 'Please provide an invoice number.' });
+    }
+
+    const invoice = await Invoice.findOne({ invoiceNumber });
+
+    if (!invoice) {
+      // If not found, return a specific error so the simple catch doesn't hide it
+      return res.status(404).json({
+        error: `No invoice found with number: ${invoiceNumber}`
+      });
+    }
+
+    const invoiceId = invoice._id;
+    console.log(`Deleting Invoice ${invoiceNumber} (ID: ${invoiceId})...`);
+
+    // Revert stock changes
+    await updateProductStock(invoice.items, 'remove');
+    console.log('Stock reverted.');
+
+    // Revert Payment Transactions
+    const transactions = await Transaction.find({ referenceId: invoiceId });
+    console.log(`Found ${transactions.length} transactions associated with invoice.`);
+
+    for (const trans of transactions) {
+      console.log(`Reverting transaction: ${trans._id}, Amount: ${trans.amount}`);
+      const acc = await Account.findById(trans.account);
+      if (acc) {
+        if (trans.type === 'credit') {
+          acc.balance -= trans.amount;
+        } else {
+          acc.balance += trans.amount;
+        }
+        await acc.save();
+        console.log(`Account ${acc.name} balance updated.`);
+      } else {
+        console.log(`Account not found for transaction ${trans._id}`);
+      }
+      await Transaction.deleteOne({ _id: trans._id });
+      console.log(`Transaction ${trans._id} deleted.`);
+    }
+
+    // If this invoice is associated with a customer, update the customer
+    if (invoice.customer) {
+      const customerId = invoice.customer;
+      await Customer.findByIdAndUpdate(customerId, {
+        $pull: { purchase_history: invoiceId }
+      });
+
+      // Delete the invoice first, then recalculate
+      await Invoice.deleteOne({ _id: invoiceId });
+
+      // Recalculate customer's due
+      await recalculateCustomerDue(customerId);
+    } else {
+      await Invoice.deleteOne({ _id: invoiceId });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Invoice #${invoiceNumber} has been deleted successfully!`
+    });
+  } catch (error) {
+    console.error('Error deleting invoice by number:', error);
     res.status(400).json({
       error: 'Your request could not be processed. Please try again.'
     });
@@ -632,6 +716,8 @@ router.get('/invoice/:number', async (req, res) => {
   }
 });
 
+
+
 module.exports = router;
 
 const updateProductStock = async (items, operation) => {
@@ -705,7 +791,7 @@ const recalculateCustomerDue = async (customerId) => {
     // Subtract all payments
     const allPayments = customerWithInvoices.payment_history || [];
     for (const payment of allPayments) {
-      runningBalance -= payment.amount || 0;
+      runningBalance -= (payment.amount || 0) - (payment.fee || 0);
     }
 
     // Update customer's due to match ledger balance

@@ -29,6 +29,14 @@ const TransactionSchema = new Schema({
     category: {
         type: String // e.g., 'Snacks', 'Paper', 'Others'
     },
+    isUndone: {
+        type: Boolean,
+        default: false
+    },
+    relatedTransaction: {
+        type: Schema.Types.ObjectId,
+        ref: 'Transaction' // For transfers, links the debit and credit sides
+    },
     date: {
         type: Date,
         default: Date.now

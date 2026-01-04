@@ -29,6 +29,8 @@ import Invoice from '../../../containers/Invoice';
 import Customer from '../../../containers/Customer';
 import MyShop from '../../../containers/MyShop';
 import AccountsManager from '../../../containers/AccountsManager';
+import Import from '../../../containers/Import';
+import Supplier from '../../../containers/Supplier';
 
 const Admin = props => {
   const location = useLocation();
@@ -36,7 +38,7 @@ const Admin = props => {
 
   // Check if the current route is /dashboard/orderNows
   const isOrderNowSelected = location.pathname === '/dashboard/orderNows';
-  const isInvoiceSelected = location.pathname.startsWith('/dashboard/invoice');
+  const isInvoiceSelected = location.pathname.startsWith('/dashboard/invoice') || location.pathname.startsWith('/dashboard/supplier/orders');
 
   return (
     <div className='admin'>
@@ -72,8 +74,8 @@ const Admin = props => {
           </>
         )}
 
-        <div className='flex-grow-1 p-3' style={{ minWidth: 0, backgroundColor: '#f5f7fb' }}>
-          <div className='panel-body bg-transparent shadow-none p-0'>
+        <div className={`flex-grow-1 ${isInvoiceSelected ? 'p-0' : 'p-3'}`} style={{ minWidth: 0, backgroundColor: '#f5f7fb' }}>
+          <div className='panel-body bg-transparent shadow-none p-0' style={isInvoiceSelected ? { marginTop: 0 } : {}}>
             <Switch>
               <Route exact path='/dashboard' component={Account} />
               <Route path='/dashboard/invoice' component={Invoice} />
@@ -92,6 +94,8 @@ const Admin = props => {
               <Route path='/dashboard/orderNows' component={OrderNow} />
               <Route path='/dashboard/review' component={Review} />
               <Route path='/dashboard/wishlist' component={Wishlist} />
+              <Route path='/dashboard/import' component={Import} />
+              <Route path='/dashboard/supplier' component={Supplier} />
               <Route path='*' component={Page404} />
             </Switch>
           </div>

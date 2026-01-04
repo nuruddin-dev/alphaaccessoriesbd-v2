@@ -19,6 +19,18 @@
       "icon": "fa-shopping-bag"
     },
     {
+      "to": "/import",
+      "name": "Import Mgmt",
+      "prefix": "/dashboard",
+      "icon": "fa-ship"
+    },
+    {
+      "to": "/supplier",
+      "name": "Suppliers",
+      "prefix": "/dashboard",
+      "icon": "fa-handshake-o"
+    },
+    {
       "to": "/security",
       "name": "Account Security",
       "prefix": "/dashboard",

@@ -13,6 +13,9 @@ const CustomerTable = ({ customers, history }) => {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [discountInvoice, setDiscountInvoice] = useState(null);
+  const [discountAmount, setDiscountAmount] = useState('');
 
   // Ensure customers is always an array
   const safeCustomers = Array.isArray(customers)
@@ -40,15 +43,8 @@ const CustomerTable = ({ customers, history }) => {
     () => [
       {
         Header: 'Name',
-        accessor: 'name'
-      },
-      {
-        Header: 'Phone Number',
-        accessor: 'phone'
-      },
-      {
-        Header: 'Address',
-        accessor: 'address'
+        accessor: 'name',
+        Cell: ({ row }) => <div className='font-weight-bold'>{row.original.name}</div>
       },
       {
         Header: 'Due Amount',
@@ -57,7 +53,20 @@ const CustomerTable = ({ customers, history }) => {
           const dueA = rowA.original.due || 0;
           const dueB = rowB.original.due || 0;
           return dueA - dueB;
-        }
+        },
+        Cell: ({ value }) => (
+          <span className={`font-weight-bold ${value > 0 ? 'text-danger' : 'text-success'}`}>
+            ৳{value?.toLocaleString() || 0}
+          </span>
+        )
+      },
+      {
+        Header: 'Phone Number',
+        accessor: 'phone'
+      },
+      {
+        Header: 'Address',
+        accessor: 'address'
       },
       {
         Header: 'Purchase History',
@@ -117,7 +126,7 @@ const CustomerTable = ({ customers, history }) => {
         )
       }
     ],
-    [safeCustomers]
+    [safeCustomers, history] // Added history to dependency array
   );
 
   const { getTableProps, getTableBodyProps, headerGroups, rows, prepareRow } =
@@ -218,11 +227,13 @@ const CustomerTable = ({ customers, history }) => {
                     <tr>
                       <th>Invoice #</th>
                       <th>Today's Total</th>
+                      <th>Discount</th>
                       <th>Previous Due</th>
                       <th>Total</th>
                       <th>Paid</th>
                       <th>Due</th>
                       <th>Date</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -238,6 +249,7 @@ const CustomerTable = ({ customers, history }) => {
                           )}
                         </td>
                         <td>৳{item.invoice.subTotal || 0}</td>
+                        <td>৳{item.invoice.discount || 0}</td>
                         <td>৳{item.invoice.previousDue || 0}</td>
                         <td>৳{item.invoice.grandTotal || 0}</td>
                         <td>৳{item.invoice.paid || 0}</td>
@@ -248,6 +260,18 @@ const CustomerTable = ({ customers, history }) => {
                           {item.invoice.created
                             ? formatDateTime(item.invoice.created)
                             : 'Invalid Date'}
+                        </td>
+                        <td>
+                          <button
+                            className='btn btn-sm btn-primary'
+                            onClick={() => {
+                              setDiscountInvoice(item.invoice);
+                              setDiscountAmount(item.invoice.discount || 0);
+                              setShowDiscountModal(true);
+                            }}
+                          >
+                            Discount
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -264,6 +288,83 @@ const CustomerTable = ({ customers, history }) => {
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Discount Modal */}
+      {showDiscountModal && (
+        <div className='history-modal'>
+          <div className='history-modal-content' style={{ width: '400px', maxWidth: '90%' }}>
+            <h4>Update Discount</h4>
+            <p>Invoice #: {discountInvoice?.invoiceNumber}</p>
+            <div className='form-group'>
+              <label>Discount Amount</label>
+              <input
+                type='number'
+                className='form-control'
+                value={discountAmount}
+                onChange={e => setDiscountAmount(e.target.value)}
+              />
+            </div>
+            <div className='d-flex justify-content-end mt-3'>
+              <button
+                className='btn btn-secondary mr-2'
+                onClick={() => {
+                  setShowDiscountModal(false);
+                  setDiscountInvoice(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className='btn btn-primary'
+                onClick={async () => {
+                  if (!discountInvoice) return;
+                  try {
+                    const discount = parseFloat(discountAmount) || 0;
+                    const subTotal = parseFloat(discountInvoice.subTotal) || 0;
+                    const previousDue = parseFloat(discountInvoice.previousDue) || 0;
+                    const paid = parseFloat(discountInvoice.paid) || 0;
+
+                    // Recalculate based on formula: GrandTotal = SubTotal + PreviousDue - Discount
+                    const grandTotal = subTotal + previousDue - discount;
+                    const due = grandTotal - paid;
+
+                    const updateData = {
+                      discount,
+                      grandTotal,
+                      due
+                    };
+
+                    await axios.put(`${API_URL}/invoice/${discountInvoice._id}`, updateData);
+
+                    // Update local state
+                    const updatedDetails = invoiceDetails.map(item => {
+                      if (item.invoice._id === discountInvoice._id) {
+                        return {
+                          ...item,
+                          invoice: {
+                            ...item.invoice,
+                            ...updateData
+                          }
+                        };
+                      }
+                      return item;
+                    });
+                    setInvoiceDetails(updatedDetails);
+                    setShowDiscountModal(false);
+                    alert('Discount updated successfully!');
+
+                  } catch (error) {
+                    console.error('Error updating discount:', error);
+                    alert('Failed to update discount.');
+                  }
+                }}
+              >
+                Save
+              </button>
+            </div>
           </div>
         </div>
       )}

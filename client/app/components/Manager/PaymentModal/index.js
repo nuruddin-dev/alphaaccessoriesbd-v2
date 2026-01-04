@@ -39,6 +39,7 @@ class PaymentModal extends Component {
             notes: '',
             relatedInvoice: '',
             invoices: [],
+            discount: '', // New state for discount
             isLoading: false,
             error: ''
         };
@@ -61,8 +62,17 @@ class PaymentModal extends Component {
             const firstItem = customer.purchase_history[0];
             if (typeof firstItem === 'object' && firstItem.invoiceNumber) {
                 // Already populated - filter for invoices with due > 0
-                const invoicesWithDue = customer.purchase_history.filter(inv => inv.due > 0);
+                const invoicesWithDue = customer.purchase_history.filter(inv => (inv.due || 0) > 0);
                 this.setState({ invoices: invoicesWithDue });
+
+                // Automatically select the most recent invoice with due > 0
+                if (invoicesWithDue.length > 0) {
+                    const latestInvoice = [...invoicesWithDue].sort((a, b) => new Date(b.created) - new Date(a.created))[0];
+                    this.setState({
+                        relatedInvoice: latestInvoice._id,
+                        discount: latestInvoice.discount || 0
+                    });
+                }
                 return;
             }
         }
@@ -80,8 +90,17 @@ class PaymentModal extends Component {
             );
             if (response.data.invoices) {
                 // Filter invoices with remaining due
-                const invoicesWithDue = response.data.invoices.filter(inv => inv.due > 0);
+                const invoicesWithDue = response.data.invoices.filter(inv => (inv.due || 0) > 0);
                 this.setState({ invoices: invoicesWithDue });
+
+                // Automatically select the most recent invoice with due > 0
+                if (invoicesWithDue.length > 0) {
+                    const latestInvoice = [...invoicesWithDue].sort((a, b) => new Date(b.created) - new Date(a.created))[0];
+                    this.setState({
+                        relatedInvoice: latestInvoice._id,
+                        discount: latestInvoice.discount || 0
+                    });
+                }
             }
         } catch (error) {
             console.error('Error fetching invoices:', error);
@@ -93,15 +112,16 @@ class PaymentModal extends Component {
             const response = await axios.get(`${API_URL}/account`);
             const accounts = response.data.accounts || [];
 
-            let initialAccountType = '';
-            if (accounts.length > 0) {
-                initialAccountType = accounts[0].type;
-            }
+            // Add 'None' account for returns/adjustments
+            const updatedAccounts = [
+                { _id: 'none', name: 'None (Product Return/Adjustment)', type: 'none' },
+                ...accounts
+            ];
 
             this.setState({
-                accounts,
-                selectedAccount: accounts.length > 0 ? accounts[0]._id : '',
-                selectedAccountType: initialAccountType
+                accounts: updatedAccounts,
+                selectedAccount: updatedAccounts[0]._id,
+                selectedAccountType: updatedAccounts[0].type
             });
         } catch (error) {
             console.error('Error fetching accounts:', error);
@@ -130,7 +150,16 @@ class PaymentModal extends Component {
     };
 
     handleInvoiceChange = (e) => {
-        this.setState({ relatedInvoice: e.target.value });
+        const invoiceId = e.target.value;
+        const invoice = this.state.invoices.find(i => i._id === invoiceId);
+        this.setState({
+            relatedInvoice: invoiceId,
+            discount: invoice ? (invoice.discount || 0) : ''
+        });
+    };
+
+    handleDiscountChange = (e) => {
+        this.setState({ discount: e.target.value });
     };
 
     handleSubmit = async () => {
@@ -145,10 +174,35 @@ class PaymentModal extends Component {
         this.setState({ isLoading: true, error: '' });
 
         try {
+            // If related invoice is selected and discount is modified/provided, update invoice first
+            if (relatedInvoice && this.state.discount !== '' && parseFloat(this.state.discount) >= 0) {
+                const invoice = this.state.invoices.find(i => i._id === relatedInvoice);
+                if (invoice) {
+                    const newDiscount = parseFloat(this.state.discount);
+                    // Only update if discount has changed
+                    if (newDiscount !== (invoice.discount || 0)) {
+                        const subTotal = parseFloat(invoice.subTotal) || 0;
+                        const previousDue = parseFloat(invoice.previousDue) || 0;
+                        const paid = parseFloat(invoice.paid) || 0;
+
+                        // Calculate new values: GrandTotal = SubTotal + PreviousDue - Discount
+                        const grandTotal = subTotal + previousDue - newDiscount;
+                        // Due = GrandTotal - Paid (This is intermediate due, before this payment is applied)
+                        const due = grandTotal - paid;
+
+                        await axios.put(`${API_URL}/invoice/${relatedInvoice}`, {
+                            discount: newDiscount,
+                            grandTotal,
+                            due
+                        });
+                    }
+                }
+            }
+
             const response = await axios.post(`${API_URL}/payment/create`, {
                 customer: customer._id,
                 amount: parseFloat(amount),
-                account: selectedAccount,
+                account: selectedAccount === 'none' ? null : selectedAccount,
                 fee: parseFloat(this.state.fee) || 0,
                 notes,
                 relatedInvoice: relatedInvoice || null
@@ -178,7 +232,7 @@ class PaymentModal extends Component {
 
     render() {
         const { isOpen, onRequestClose, customer } = this.props;
-        const { amount, fee, selectedAccount, selectedAccountType, accounts, notes, relatedInvoice, invoices, isLoading, error } = this.state;
+        const { amount, fee, selectedAccount, selectedAccountType, accounts, notes, relatedInvoice, invoices, discount, isLoading, error } = this.state;
 
         const inputStyle = {
             width: '100%',
@@ -299,20 +353,40 @@ class PaymentModal extends Component {
                 )}
 
                 <div>
-                    <label style={labelStyle}>Related Invoice (Optional)</label>
+                    <label style={labelStyle}>Apply Payment To (Auto-selected Last Invoice)</label>
                     <select
                         style={inputStyle}
                         value={relatedInvoice}
                         onChange={this.handleInvoiceChange}
                     >
-                        <option value="">-- Select Invoice --</option>
+                        <option value="">-- Manual Selection --</option>
                         {invoices.map(inv => (
                             <option key={inv._id} value={inv._id}>
-                                #{inv.invoiceNumber} - Due: ৳{inv.due}
+                                #{inv.invoiceNumber} - Due: ৳{inv.due} {inv._id === relatedInvoice ? '(Selected)' : ''}
                             </option>
                         ))}
                     </select>
+                    {!relatedInvoice && invoices.length > 0 && (
+                        <p style={{ fontSize: '12px', color: '#dc2626', marginTop: '-8px', marginBottom: '12px' }}>
+                            Warning: No invoice selected, will auto-apply to last invoice.
+                        </p>
+                    )}
                 </div>
+
+                {relatedInvoice && (
+                    <div>
+                        <label style={labelStyle}>Discount Amount (৳)</label>
+                        <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            style={inputStyle}
+                            value={discount}
+                            onChange={this.handleDiscountChange}
+                            placeholder="Enter discount amount"
+                        />
+                    </div>
+                )}
 
                 <div>
                     <label style={labelStyle}>Notes (Optional)</label>

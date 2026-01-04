@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Account = require('../../models/account');
 const Transaction = require('../../models/transaction');
+const ExpenseCategory = require('../../models/expenseCategory');
 const auth = require('../../middleware/auth');
 const role = require('../../middleware/role');
 const { ROLES } = require('../../constants');
@@ -150,9 +151,14 @@ router.post('/transaction/add', auth, role.check(ROLES.Admin), async (req, res) 
                 type: 'credit',
                 reference: 'Transfer',
                 category: 'Transfer',
-                description: `Transfer from ${accountDoc.name}`
+                description: `Transfer from ${accountDoc.name}`,
+                relatedTransaction: debitTrans._id
             });
             await creditTrans.save();
+
+            // Link debit to credit
+            debitTrans.relatedTransaction = creditTrans._id;
+            await debitTrans.save();
 
             return res.status(200).json({
                 success: true,
@@ -215,10 +221,6 @@ router.get('/transactions', auth, async (req, res) => {
             const end = new Date(endDate);
             end.setHours(23, 59, 59, 999);
             query.date = { $gte: start, $lte: end };
-        } else {
-            // Default to today if no date provided? Or all? 
-            // Only if user requests "Today's input".
-            // Let's return all limit by 100 if no date, or handle in frontend.
         }
 
         const transactions = await Transaction.find(query)
@@ -227,6 +229,108 @@ router.get('/transactions', auth, async (req, res) => {
             .limit(2000);
 
         res.status(200).json({ transactions });
+    } catch (error) {
+        res.status(400).json({ error: 'Your request could not be processed. Please try again.' });
+    }
+});
+
+// @route PUT api/account/transaction/undo/:id
+// @desc Undo a transaction
+// @access Private
+router.put('/transaction/undo/:id', auth, role.check(ROLES.Admin), async (req, res) => {
+    try {
+        const transactionId = req.params.id;
+        const transaction = await Transaction.findById(transactionId);
+
+        if (!transaction) {
+            return res.status(404).json({ error: 'Transaction not found.' });
+        }
+
+        if (transaction.isUndone) {
+            return res.status(400).json({ error: 'Transaction is already undone.' });
+        }
+
+        const account = await Account.findById(transaction.account);
+        if (!account) {
+            return res.status(404).json({ error: 'Account not found.' });
+        }
+
+        // Revert Balance
+        if (transaction.type === 'credit') {
+            account.balance -= transaction.amount;
+        } else if (transaction.type === 'debit') {
+            account.balance += transaction.amount;
+        }
+        await account.save();
+
+        transaction.isUndone = true;
+        await transaction.save();
+
+        // If it's a transfer, undo the related transaction as well
+        if (transaction.category === 'Transfer' && transaction.relatedTransaction) {
+            const relatedTrans = await Transaction.findById(transaction.relatedTransaction);
+            if (relatedTrans && !relatedTrans.isUndone) {
+                const relatedAccount = await Account.findById(relatedTrans.account);
+                if (relatedAccount) {
+                    if (relatedTrans.type === 'credit') {
+                        relatedAccount.balance -= relatedTrans.amount;
+                    } else if (relatedTrans.type === 'debit') {
+                        relatedAccount.balance += relatedTrans.amount;
+                    }
+                    await relatedAccount.save();
+                }
+                relatedTrans.isUndone = true;
+                await relatedTrans.save();
+            }
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Transaction undone successfully!',
+            newBalance: account.balance
+        });
+    } catch (error) {
+        console.error('Undo transaction error:', error);
+        res.status(400).json({ error: 'Your request could not be processed. Please try again.' });
+    }
+});
+
+// @route GET api/account/expense-category
+// @desc Get all expense categories
+// @access Private
+router.get('/expense-category', auth, async (req, res) => {
+    try {
+        const categories = await ExpenseCategory.find({ isActive: true }).sort({ name: 1 });
+        res.status(200).json({ categories });
+    } catch (error) {
+        res.status(400).json({ error: 'Your request could not be processed. Please try again.' });
+    }
+});
+
+// @route POST api/account/expense-category/add
+// @desc Add new expense category
+// @access Private
+router.post('/expense-category/add', auth, role.check(ROLES.Admin), async (req, res) => {
+    try {
+        const { name, description } = req.body;
+
+        if (!name) {
+            return res.status(400).json({ error: 'Category name is required.' });
+        }
+
+        const existingCategory = await ExpenseCategory.findOne({ name: { $regex: new RegExp('^' + name + '$', 'i') } });
+        if (existingCategory) {
+            return res.status(400).json({ error: 'Category with this name already exists.' });
+        }
+
+        const category = new ExpenseCategory({ name, description });
+        await category.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Category added successfully!',
+            category
+        });
     } catch (error) {
         res.status(400).json({ error: 'Your request could not be processed. Please try again.' });
     }

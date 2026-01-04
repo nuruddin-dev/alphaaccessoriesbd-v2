@@ -116,6 +116,20 @@ router.get('/list/search/:name', async (req, res) => {
   }
 });
 
+// fetch product list for selection (dropdowns)
+router.get('/list/select', auth, async (req, res) => {
+  try {
+    const products = await Product.find({ isActive: true }, 'name sku shortName price buyingPrice quantity');
+    res.status(200).json({
+      products
+    });
+  } catch (error) {
+    res.status(400).json({
+      error: 'Your request could not be processed. Please try again.'
+    });
+  }
+});
+
 // fetch store products by advanced filters api
 router.get('/list', async (req, res) => {
   try {

@@ -192,31 +192,6 @@ class CustomerLedgerModal extends Component {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {/* Show opening balance if first entry has it */}
-                                    {ledger[0]?.openingBalance > 0 && (
-                                        <tr style={{ background: '#fef3c7' }}>
-                                            <td style={tdStyle}>-</td>
-                                            <td style={tdStyle}>
-                                                <span style={{
-                                                    background: '#fbbf24',
-                                                    color: '#78350f',
-                                                    padding: '2px 8px',
-                                                    borderRadius: '12px',
-                                                    fontSize: '11px',
-                                                    fontWeight: 500
-                                                }}>
-                                                    Opening Balance
-                                                </span>
-                                            </td>
-                                            <td style={{ ...tdStyle, textAlign: 'right', color: '#dc2626' }}>
-                                                ৳{ledger[0].openingBalance}
-                                            </td>
-                                            <td style={{ ...tdStyle, textAlign: 'right' }}>-</td>
-                                            <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600, color: '#dc2626' }}>
-                                                ৳{ledger[0].openingBalance}
-                                            </td>
-                                        </tr>
-                                    )}
                                     {ledger.map((entry, index) => (
                                         <tr key={index} style={{
                                             background: entry.type === 'payment' ? '#f0fdf4' : 'transparent'
@@ -266,7 +241,7 @@ class CustomerLedgerModal extends Component {
                                                     )}
                                                     {entry.type === 'invoice' && (
                                                         <span style={{ color: '#94a3b8', fontSize: '12px' }}>
-                                                            (SubTotal: ৳{entry.subTotal}, Paid: ৳{entry.paid})
+                                                            (Total: ৳{(entry.subTotal - (entry.discount || 0)).toLocaleString()}, Paid at Checkout: ৳{(entry.paid || 0).toLocaleString()})
                                                         </span>
                                                     )}
                                                     {entry.notes && (
@@ -277,10 +252,10 @@ class CustomerLedgerModal extends Component {
                                                 </div>
                                             </td>
                                             <td style={{ ...tdStyle, textAlign: 'right', color: '#dc2626' }}>
-                                                {entry.type === 'invoice' ? `৳${entry.newAmount || (entry.subTotal - (entry.discount || 0) - entry.paid)}` : '-'}
+                                                {entry.debit > 0 ? `৳${entry.debit.toLocaleString()}` : '-'}
                                             </td>
                                             <td style={{ ...tdStyle, textAlign: 'right', color: '#16a34a' }}>
-                                                {entry.type === 'payment' ? `৳${entry.amount}` : '-'}
+                                                {entry.credit > 0 ? `৳${entry.credit.toLocaleString()}` : '-'}
                                             </td>
                                             <td style={{
                                                 ...tdStyle,
@@ -292,6 +267,32 @@ class CustomerLedgerModal extends Component {
                                             </td>
                                         </tr>
                                     ))}
+
+                                    {/* Show opening balance at bottom (oldest entry) */}
+                                    {ledger[ledger.length - 1]?.openingBalance > 0 && (
+                                        <tr style={{ background: '#fef3c7' }}>
+                                            <td style={tdStyle}>-</td>
+                                            <td style={tdStyle}>
+                                                <span style={{
+                                                    background: '#fbbf24',
+                                                    color: '#78350f',
+                                                    padding: '2px 8px',
+                                                    borderRadius: '12px',
+                                                    fontSize: '11px',
+                                                    fontWeight: 500
+                                                }}>
+                                                    Opening Balance
+                                                </span>
+                                            </td>
+                                            <td style={{ ...tdStyle, textAlign: 'right', color: '#dc2626' }}>
+                                                ৳{ledger[ledger.length - 1].openingBalance.toLocaleString()}
+                                            </td>
+                                            <td style={{ ...tdStyle, textAlign: 'right' }}>-</td>
+                                            <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600, color: '#dc2626' }}>
+                                                ৳{ledger[ledger.length - 1].openingBalance.toLocaleString()}
+                                            </td>
+                                        </tr>
+                                    )}
                                 </tbody>
                             </table>
                         )}

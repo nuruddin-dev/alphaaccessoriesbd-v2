@@ -30,11 +30,13 @@ router.get('/ledger/:customerId', auth, async (req, res) => {
 
         // Build ledger entries from purchase_history (invoices)
         const ledgerEntries = [];
+        const invoiceMap = {};
 
         // Add invoices to ledger
         if (customer.purchase_history && customer.purchase_history.length > 0) {
             customer.purchase_history.forEach(invoice => {
                 if (invoice) { // Check if invoice exists (not deleted)
+                    invoiceMap[invoice._id.toString()] = invoice.invoiceNumber;
                     ledgerEntries.push({
                         type: 'invoice',
                         date: invoice.created,
@@ -56,52 +58,55 @@ router.get('/ledger/:customerId', auth, async (req, res) => {
         // Add payments to ledger
         if (customer.payment_history && customer.payment_history.length > 0) {
             customer.payment_history.forEach(payment => {
+                const invNum = payment.relatedInvoice ? invoiceMap[payment.relatedInvoice.toString()] : null;
                 ledgerEntries.push({
                     type: 'payment',
                     date: payment.date,
-                    description: payment.relatedInvoice
-                        ? `Payment for Invoice`
-                        : 'Due Payment',
+                    description: `Payment of ৳${payment.amount.toLocaleString()} ${invNum ? 'for Invoice #' + invNum : 'received'}`,
                     amount: payment.amount,
                     paymentMethod: payment.paymentMethod,
                     fee: payment.fee,
                     notes: payment.notes,
                     relatedInvoice: payment.relatedInvoice,
-                    _id: payment._id
+                    _id: payment._id,
+                    isPaymentRecord: true // Flag to hide amount in debit/credit column
                 });
             });
         }
 
-        // Sort by date (ascending for ledger view)
+        // Sort by date (ascending for ledger calculation)
         ledgerEntries.sort((a, b) => new Date(a.date) - new Date(b.date));
 
         // Calculate running balance
-        // For invoices: add only the NEW amount (subTotal - discount - paid), not the full due
-        // The 'due' field includes previousDue which would cause double-counting
-        // However, the FIRST invoice's previousDue represents the opening balance
         let runningBalance = 0;
         let isFirstInvoice = true;
 
         ledgerEntries.forEach(entry => {
-            if (entry.type === 'invoice') {
-                // For the first invoice, include the previousDue as the opening balance
-                if (isFirstInvoice) {
-                    if (entry.previousDue > 0) {
-                        runningBalance += entry.previousDue;
-                        entry.openingBalance = entry.previousDue;
-                    }
-                    isFirstInvoice = false;
+            if (isFirstInvoice && entry.type === 'invoice') {
+                if (entry.previousDue > 0) {
+                    runningBalance += entry.previousDue;
+                    entry.openingBalance = entry.previousDue;
                 }
+                isFirstInvoice = false;
+            }
 
-                // New amount added to balance = subTotal - discount - paid (what they owe from THIS invoice only)
+            if (entry.type === 'invoice') {
                 const discount = entry.discount || 0;
-                const newAmount = (entry.subTotal || 0) - discount - (entry.paid || 0);
-                runningBalance += newAmount;
+                const checkoutPaid = entry.paid || 0;
+
+                const debit = (entry.subTotal || 0) - discount;
+                const credit = checkoutPaid;
+
+                runningBalance += (debit - credit);
                 entry.runningBalance = runningBalance;
-                entry.newAmount = newAmount; // Store for display
+                entry.debit = debit;
+                entry.credit = credit;
             } else if (entry.type === 'payment') {
-                runningBalance -= (entry.amount || 0) - (entry.fee || 0); // Subtract net payment
+                const credit = (entry.amount || 0) - (entry.fee || 0);
+                runningBalance -= credit;
                 entry.runningBalance = runningBalance;
+                entry.debit = 0;
+                entry.credit = credit;
             }
         });
 
@@ -177,19 +182,18 @@ router.get('/check-ledger-discrepancies', auth, role.check(ROLES.Admin), async (
 
             for (const invoice of sortedInvoices) {
                 if (isFirstInvoice) {
-                    if (invoice.previousDue > 0) {
-                        runningBalance += invoice.previousDue;
-                    }
+                    if (invoice.previousDue > 0) runningBalance += invoice.previousDue;
                     isFirstInvoice = false;
                 }
                 const discount = invoice.discount || 0;
-                const newAmount = (invoice.subTotal || 0) - discount - (invoice.paid || 0);
-                runningBalance += newAmount;
+                const netPaid = (invoice.paid || 0) - (invoice.totalFee || 0);
+                runningBalance += (invoice.subTotal || 0) - discount - netPaid;
             }
 
             const allPayments = customer.payment_history || [];
+            // Impact on balance is 0 because payments are reflected in invoice 'paid' field
             for (const payment of allPayments) {
-                runningBalance -= payment.amount || 0;
+                // runningBalance remains unchanged
             }
 
             // Check difference
@@ -266,7 +270,6 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
         await customerDoc.save();
 
         // Recalculate customer's due based on ledger calculation
-        // This ensures the customer's due matches the ledger's running balance
         const customerWithInvoices = await Customer.findById(customerId)
             .populate({
                 path: 'purchase_history',
@@ -284,39 +287,23 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
 
         // Calculate balance from invoices
         for (const invoice of sortedInvoices) {
-            // For the first invoice, include previousDue as opening balance
-            if (isFirstInvoice) {
-                if (invoice.previousDue > 0) {
-                    runningBalance += invoice.previousDue;
-                }
+            if (isFirstInvoice && invoice.previousDue > 0) {
+                runningBalance += invoice.previousDue;
                 isFirstInvoice = false;
             }
-
-            // New amount from this invoice = subTotal - discount - paid
             const discount = invoice.discount || 0;
-            const newAmount = (invoice.subTotal || 0) - discount - (invoice.paid || 0);
-            runningBalance += newAmount;
+            runningBalance += (invoice.subTotal || 0) - discount - (invoice.paid || 0);
         }
 
-        // Subtract all payments
         const allPayments = customerWithInvoices.payment_history || [];
         for (const payment of allPayments) {
-            runningBalance -= (payment.amount || 0) - (payment.fee || 0);
+            runningBalance -= ((payment.amount || 0) - (payment.fee || 0));
         }
 
         // Update customer's due to match ledger balance
         customerWithInvoices.due = runningBalance;
         await customerWithInvoices.save();
 
-        // If related invoice exists, update its paid and due amounts
-        if (relatedInvoice) {
-            const invoice = await Invoice.findById(relatedInvoice);
-            if (invoice) {
-                invoice.paid = (invoice.paid || 0) + amount;
-                invoice.due = invoice.grandTotal - invoice.paid;
-                await invoice.save();
-            }
-        }
 
         // Handle Account Transaction if account is provided
         if (account) {
@@ -329,8 +316,8 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
                     account: accountDoc._id,
                     type: 'credit',
                     amount: Number(amount),
-                    reference: customerDoc.name, // Correct usage of customerDoc
-                    referenceId: customerDoc._id,
+                    reference: customerDoc.name,
+                    referenceId: relatedInvoice || customerDoc._id,
                     description: `Payment from ${customerDoc.name} ${relatedInvoice ? '(Invoice #' + relatedInvoice + ')' : ''}`,
                     date: new Date()
                 });
@@ -374,59 +361,59 @@ router.delete('/:customerId/:paymentId', auth, role.check(ROLES.Admin), async (r
 
         const payment = customer.payment_history[paymentIndex];
 
-        // Remove payment from history
-        customer.payment_history.splice(paymentIndex, 1);
+        // 1. (Reverting Invoice Paid amount is no longer done in standalone mode)
 
-        await customer.save();
+        // 2. Revert Account Balance and Transaction
+        if (payment.account) {
+            const acc = await Account.findById(payment.account);
+            if (acc) {
+                acc.balance -= (payment.amount || 0);
+                await acc.save();
 
-        // If related invoice exists, revert its paid and due amounts
-        if (payment.relatedInvoice) {
-            const invoice = await Invoice.findById(payment.relatedInvoice);
-            if (invoice) {
-                invoice.paid = (invoice.paid || 0) - payment.amount;
-                invoice.due = invoice.grandTotal - invoice.paid;
-                await invoice.save();
+                // Delete the linked transaction
+                // We search by referenceId (which we now set to the Invoice ID or Customer ID)
+                await Transaction.deleteOne({
+                    referenceId: payment.relatedInvoice || customerId,
+                    amount: payment.amount,
+                    account: payment.account,
+                    type: 'credit'
+                });
             }
         }
 
+        // Remove payment from history
+        customer.payment_history.splice(paymentIndex, 1);
+        await customer.save();
+
+
         // Recalculate customer's due based on ledger calculation
-        // This ensures the customer's due matches the ledger's running balance
         const customerWithInvoices = await Customer.findById(customerId)
             .populate({
                 path: 'purchase_history',
                 select: 'subTotal previousDue discount paid created'
             });
 
-        // Calculate running balance using the same logic as ledger endpoint
         let runningBalance = 0;
         let isFirstInvoice = true;
-
-        // Sort invoices by date
         const sortedInvoices = (customerWithInvoices.purchase_history || [])
             .filter(inv => inv)
             .sort((a, b) => new Date(a.created || 0) - new Date(b.created || 0));
 
-        // Calculate balance from invoices
+        // Calculate balance from invoices (only use the checkout 'paid' amount)
         for (const invoice of sortedInvoices) {
-            // For the first invoice, include previousDue as opening balance
             if (isFirstInvoice && invoice.previousDue > 0) {
                 runningBalance += invoice.previousDue;
                 isFirstInvoice = false;
             }
-
-            // New amount from this invoice = subTotal - discount - paid
             const discount = invoice.discount || 0;
-            const newAmount = (invoice.subTotal || 0) - discount - (invoice.paid || 0);
-            runningBalance += newAmount;
+            runningBalance += (invoice.subTotal || 0) - discount - (invoice.paid || 0);
         }
 
-        // Subtract all remaining payments
         const allPayments = customerWithInvoices.payment_history || [];
         for (const p of allPayments) {
-            runningBalance -= (p.amount || 0) - (p.fee || 0);
+            runningBalance -= ((p.amount || 0) - (p.fee || 0));
         }
 
-        // Update customer's due to match ledger balance
         customerWithInvoices.due = runningBalance;
         await customerWithInvoices.save();
 

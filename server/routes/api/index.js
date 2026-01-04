@@ -82,8 +82,17 @@ const paymentRoutes = require('./payment');
 router.use('/payment', paymentRoutes);
 
 // Account routes
+// Account routes
 const accountRoutes = require('./account');
 router.use('/account', accountRoutes);
+
+// Import routes
+const importRoutes = require('./import');
+router.use('/import', importRoutes);
+
+// Supplier routes
+const supplierRoutes = require('./supplier');
+router.use('/supplier', supplierRoutes);
 
 
 module.exports = router;

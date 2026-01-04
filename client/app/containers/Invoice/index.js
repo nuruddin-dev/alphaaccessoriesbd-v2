@@ -7,6 +7,7 @@ import LoadingIndicator from '../../components/Common/LoadingIndicator';
 import NotFound from '../../components/Common/NotFound';
 import StockModal from '../../components/Manager/StockModal';
 import InvoiceListModal from '../../components/Manager/InvoiceListModal';
+import domtoimage from 'dom-to-image-more';
 import './styles.css'; // Import Minimal Light theme styles
 
 // Invoice Container Component
@@ -61,7 +62,10 @@ class Invoice extends React.PureComponent {
     accounts: [], // Available accounts
     payments: [], // [{ account: '', amount: '' }]
     selectedAccount: '', // Default single payment account
-    fee: '' // Fee for single payment mode
+    fee: '', // Fee for single payment mode
+    isShareModalOpen: false, // State for Share Modal
+    sharableImage: null, // Data URL of generated image
+    isGeneratingImage: false // Track image generation status
   };
 
   // LocalStorage keys for caching
@@ -292,9 +296,15 @@ class Invoice extends React.PureComponent {
           paymentMethod: invoice.paymentMethod || 'cash',
           payments: invoice.payments && invoice.payments.length > 0
             ? invoice.payments.map(p => ({ account: p.account ? p.account._id : '', amount: p.amount, fee: p.fee || 0 }))
-            : [],
+            : (invoice.paid > 0 && (invoice.paymentMethod === 'cash' || invoice.selectedAccount || invoice.account)
+              ? [{
+                account: invoice.account ? (invoice.account._id || invoice.account) : (invoice.selectedAccount || ''),
+                amount: invoice.paid,
+                fee: invoice.fee || 0
+              }]
+              : []),
           isSearchInvoice: true,
-          isWholesale: invoice.isWholesale || true,
+          isWholesale: invoice.isWholesale ?? true,
           invoiceId: invoice._id
         });
 
@@ -708,6 +718,152 @@ class Invoice extends React.PureComponent {
       return false;
     }
   };
+  /**
+   * Generates a sharable image of the invoice.
+   */
+  handleShareInvoice = async (e) => {
+    if (e) {
+      if (typeof e.preventDefault === 'function') e.preventDefault();
+      if (typeof e.stopPropagation === 'function') e.stopPropagation();
+    }
+
+    console.log('Share invoice initiated. id:', this.state.invoiceId);
+
+    // Attempt to save but don't block sharing if it fails or is draft
+    this.saveInvoiceToDatabase().catch(err => console.error('Background save failed during share:', err));
+
+    this.setState({
+      isGeneratingImage: true,
+      isShareModalOpen: true,
+      sharableImage: null
+    });
+
+    // Wait for the hidden component to be rendered
+    setTimeout(async () => {
+      const element = document.getElementById('sharable-invoice-capture');
+      if (element) {
+        try {
+          console.log('Capture started with dom-to-image. Dimensions:', element.offsetWidth, 'x', element.offsetHeight);
+
+          const imgData = await domtoimage.toPng(element, {
+            bgcolor: '#ffffff',
+            width: 600,
+            height: element.offsetHeight,
+            style: {
+              'visibility': 'visible',
+              'display': 'block',
+              'opacity': '1',
+              'transform': 'none'
+            },
+            pixelRatio: 2, // Doubling the resolution for better quality
+            copyFonts: true,
+            cacheBust: true
+          });
+
+          console.log('Capture completed successfully. Data length:', imgData.length);
+
+          if (this._isMounted) {
+            this.setState({ sharableImage: imgData, isGeneratingImage: false });
+          }
+        } catch (error) {
+          console.error('dom-to-image capture error:', error);
+          if (this._isMounted) {
+            this.setState({ isGeneratingImage: false });
+            alert(`Could not generate image: ${error.message}`);
+          }
+        }
+      } else {
+        console.error('Capture element "sharable-invoice-capture" not found in DOM');
+        if (this._isMounted) {
+          this.setState({ isGeneratingImage: false });
+          alert('Internal error: capture element missing.');
+        }
+      }
+    }, 1200);
+  };
+
+  handleDownloadInvoiceImage = () => {
+    const { sharableImage, invoiceInfo } = this.state;
+    if (!sharableImage) return;
+
+    // Use a clean filename - remove all special characters except letters, numbers and dash
+    const invoiceNum = invoiceInfo && invoiceInfo.number ? invoiceInfo.number : 'Draft';
+    const safeName = invoiceNum.toString().replace(/[^a-z0-9]/gi, '-');
+    const fileName = `Invoice-${safeName}.png`;
+
+    try {
+      // Create a blob from the base64 string
+      const parts = sharableImage.split(';base64,');
+      const contentType = parts[0].split(':')[1] || 'image/png';
+      const byteCharacters = atob(parts[1]);
+      const byteArrays = [];
+
+      for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+        const slice = byteCharacters.slice(offset, offset + 512);
+        const byteNumbers = new Array(slice.length);
+        for (let i = 0; i < slice.length; i++) {
+          byteNumbers[i] = slice.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        byteArrays.push(byteArray);
+      }
+
+      const blob = new Blob(byteArrays, { type: contentType });
+      const url = window.URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      link.style.display = 'none';
+      link.href = url;
+      link.setAttribute('download', fileName);
+      link.download = fileName; // Explicitly set download property too
+
+      document.body.appendChild(link);
+      link.click();
+
+      // Small delay before cleanup
+      setTimeout(() => {
+        if (document.body.contains(link)) {
+          document.body.removeChild(link);
+        }
+        window.URL.revokeObjectURL(url);
+      }, 1000);
+    } catch (e) {
+      console.error('Blob download failed, using fallback:', e);
+      const link = document.createElement('a');
+      link.style.display = 'none';
+      link.href = sharableImage;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        if (document.body.contains(link)) {
+          document.body.removeChild(link);
+        }
+      }, 1000);
+    }
+  };
+
+  handleSendInvoiceWhatsApp = () => {
+    const { customerInfo, invoiceInfo } = this.state;
+    const phone = customerInfo.phone || '';
+    const cleanPhone = phone.replace(/\D/g, '');
+
+    // Format a message
+    const message = `Hello, here is your invoice #${invoiceInfo.number} from Alpha Accessories.`;
+    const encodedMessage = encodeURIComponent(message);
+
+    // If we have a phone, send to that number, otherwise just open WhatsApp
+    const whatsappUrl = cleanPhone
+      ? `https://wa.me/${cleanPhone.startsWith('88') ? cleanPhone : '88' + cleanPhone}?text=${encodedMessage}`
+      : `https://wa.me/?text=${encodedMessage}`;
+
+    window.open(whatsappUrl, '_blank');
+  };
+
+  handleCloseShareModal = () => {
+    this.setState({ isShareModalOpen: false, sharableImage: null });
+  };
+
   /**
    * Print the invoice using browser print functionality.
    * Uses CSS to style the printed version.
@@ -1168,6 +1324,136 @@ class Invoice extends React.PureComponent {
         [field]: value
       }
     });
+  };
+
+  renderSharableInvoiceJSX = () => {
+    const {
+      invoiceItems,
+      customerInfo,
+      invoiceInfo,
+      previousDue,
+      discount,
+      paid,
+      notes
+    } = this.state;
+
+    const grandTotal = this.calculateGrandTotal();
+    const due = this.calculateRemainingDue();
+    const finalTotal = grandTotal + previousDue - discount;
+
+    const filledInvoiceItems = invoiceItems.filter(
+      item => item.product || (item.productName && item.productName.trim() !== '')
+    );
+
+    return (
+      <div id="sharable-invoice-capture" style={{
+        width: '600px',
+        padding: '30px',
+        backgroundColor: 'white',
+        fontFamily: 'Arial, sans-serif',
+        color: '#333',
+        position: 'relative'
+      }}>
+        {/* Watermark Logo */}
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          opacity: 0.05,
+          zIndex: 0,
+          width: '60%'
+        }}>
+          {/* Watermark removed temporarily for testing */}
+        </div>
+
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+            <div style={{ width: '65%' }}>
+              <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#dc2626', marginBottom: '5px' }}>Alpha</div>
+              <div style={{ fontSize: '13px', lineHeight: '1.4' }}>
+                ২৬, ২৭/২, ৪০ (৮ নং সিড়ি সংলগ্ন), তৃতীয় তলা<br />
+                সুন্দরবন স্কয়ার সুপার মার্কেট, ঢাকা ১০০০<br />
+                মোবাইল: ০১৮৩৮৬২৬১২১, ০১৮৬৯১১৬৬৯১
+              </div>
+            </div>
+            <div style={{ width: '35%', fontSize: '13px', textAlign: 'right' }}>
+              <p style={{ margin: '0 0 5px 0' }}><strong>Invoice No:</strong> {invoiceInfo.number}</p>
+              <p style={{ margin: '0 0 5px 0' }}><strong>Date:</strong> {invoiceInfo.date ? new Date(invoiceInfo.date).toLocaleDateString('en-GB') : 'N/A'}</p>
+              <p style={{ margin: '0 0 5px 0', fontSize: '14px', fontWeight: 'bold' }}>{customerInfo.name}</p>
+              <p style={{ margin: '0' }}>{customerInfo.phone}</p>
+            </div>
+          </div>
+
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '13px' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#f1f5f9' }}>
+                <th style={{ border: '1px solid #e2e8f0', padding: '8px', textAlign: 'left' }}>Product Name</th>
+                <th style={{ border: '1px solid #e2e8f0', padding: '8px', textAlign: 'center', width: '80px' }}>Qty</th>
+                <th style={{ border: '1px solid #e2e8f0', padding: '8px', textAlign: 'center', width: '80px' }}>Price</th>
+                <th style={{ border: '1px solid #e2e8f0', padding: '8px', textAlign: 'center', width: '100px' }}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filledInvoiceItems.map((item, index) => (
+                <tr key={index}>
+                  <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px' }}>{item.productName || (item.product ? item.product.shortName || item.product.name : '')}</td>
+                  <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px', textAlign: 'center' }}>{item.quantity}</td>
+                  <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px', textAlign: 'center' }}>{item.unitPrice}</td>
+                  <td style={{ border: '1px solid #e2e8f0', padding: '6px 8px', textAlign: 'center' }}>{item.totalPrice}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <div style={{ width: '60%', fontSize: '11px', color: '#dc2626' }}>
+              {notes && <div><strong>Note:</strong> {notes}</div>}
+            </div>
+            <div style={{ width: '35%' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                <tbody>
+                  <tr>
+                    <td style={{ padding: '4px 0', textAlign: 'right' }}>Total:</td>
+                    <td style={{ padding: '4px 0 4px 15px', textAlign: 'right', fontWeight: 'bold' }}>{grandTotal}</td>
+                  </tr>
+                  {previousDue > 0 && (
+                    <tr>
+                      <td style={{ padding: '4px 0', textAlign: 'right' }}>Previous Due:</td>
+                      <td style={{ padding: '4px 0 4px 15px', textAlign: 'right', fontWeight: 'bold' }}>{previousDue}</td>
+                    </tr>
+                  )}
+                  {discount > 0 && (
+                    <tr>
+                      <td style={{ padding: '4px 0', textAlign: 'right' }}>Discount:</td>
+                      <td style={{ padding: '4px 0 4px 15px', textAlign: 'right', fontWeight: 'bold' }}>{discount}</td>
+                    </tr>
+                  )}
+                  {(previousDue > 0 || discount > 0) && (
+                    <tr style={{ borderTop: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '4px 0', textAlign: 'right', fontWeight: 'bold' }}>Grand Total:</td>
+                      <td style={{ padding: '4px 0 4px 15px', textAlign: 'right', fontWeight: 'bold' }}>{finalTotal}</td>
+                    </tr>
+                  )}
+                  <tr>
+                    <td style={{ padding: '4px 0', textAlign: 'right' }}>Paid:</td>
+                    <td style={{ padding: '4px 0 4px 15px', textAlign: 'right', fontWeight: 'bold' }}>{paid || 0}</td>
+                  </tr>
+                  <tr style={{ borderTop: '2px solid #333' }}>
+                    <td style={{ padding: '4px 0', textAlign: 'right', fontWeight: 'bold' }}>Net Due:</td>
+                    <td style={{ padding: '4px 0 4px 15px', textAlign: 'right', fontWeight: 'bold', fontSize: '15px' }}>{due}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style={{ marginTop: '40px', textAlign: 'center', fontSize: '11px', color: '#94a3b8' }}>
+            Thank you for your business!
+          </div>
+        </div>
+      </div>
+    );
   };
 
   handleInvoiceInfoChange = async (field, value) => {
@@ -1685,6 +1971,26 @@ class Invoice extends React.PureComponent {
   };
 
   // Payment Handlers
+  handleSwitchToMultiPay = () => {
+    this.setState(prevState => {
+      // Prevent adding extra rows if already in multi-pay mode (e.g. double click)
+      if (prevState.payments.length >= 2) return null;
+
+      const existingData = prevState.payments.length > 0 ? prevState.payments[0] : {
+        account: prevState.selectedAccount || (prevState.accounts.length > 0 ? prevState.accounts[0]._id : ''),
+        amount: prevState.paid || '',
+        fee: prevState.fee || ''
+      };
+
+      return {
+        payments: [
+          existingData,
+          { account: '', amount: '', fee: '' }
+        ]
+      };
+    });
+  };
+
   handleAddPayment = () => {
     this.setState(prevState => ({
       payments: [...prevState.payments, { account: '', amount: '', fee: '' }]
@@ -2249,7 +2555,7 @@ class Invoice extends React.PureComponent {
                     </div>
 
                     {/* Payments Section */}
-                    {this.state.payments.length > 0 ? (
+                    {this.state.payments.length > 1 ? (
                       <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '8px' }}>
                         <label style={{ display: 'block', marginBottom: '8px', fontSize: '11px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
                           Payments
@@ -2312,7 +2618,7 @@ class Invoice extends React.PureComponent {
                         <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
                           Payment Account:
                           <span
-                            onClick={this.handleAddPayment}
+                            onClick={this.handleSwitchToMultiPay}
                             style={{ float: 'right', color: '#3b82f6', cursor: 'pointer', fontSize: '10px' }}
                           >
                             Multi-Pay
@@ -2321,8 +2627,15 @@ class Invoice extends React.PureComponent {
                         <div style={{ display: 'flex', gap: '5px' }}>
                           <select
                             style={{ ...inputStyle, flex: 2 }}
-                            value={this.state.selectedAccount}
-                            onChange={e => this.setState({ selectedAccount: e.target.value })}
+                            value={this.state.payments.length === 1 ? this.state.payments[0].account : this.state.selectedAccount}
+                            onChange={e => {
+                              const val = e.target.value;
+                              if (this.state.payments.length === 1) {
+                                this.handlePaymentChange(0, 'account', val);
+                              } else {
+                                this.setState({ selectedAccount: val });
+                              }
+                            }}
                           >
                             <option value="">Select Account</option>
                             {this.state.accounts.map(acc => (
@@ -2330,7 +2643,8 @@ class Invoice extends React.PureComponent {
                             ))}
                           </select>
                           {(() => {
-                            const selectedAcc = this.state.accounts.find(a => a._id === this.state.selectedAccount);
+                            const accId = this.state.payments.length === 1 ? this.state.payments[0].account : this.state.selectedAccount;
+                            const selectedAcc = this.state.accounts.find(a => a._id === accId);
                             const isMobileBanking = selectedAcc && (selectedAcc.type === 'mobile' || selectedAcc.type === 'bkash' || selectedAcc.type === 'nagad' || selectedAcc.type === 'rocket');
                             return isMobileBanking ? (
                               <input
@@ -2338,8 +2652,15 @@ class Invoice extends React.PureComponent {
                                 style={{ ...inputStyle, flex: 1 }}
                                 placeholder="Fee"
                                 title="Transaction Fee"
-                                value={this.state.fee}
-                                onChange={(e) => this.setState({ fee: e.target.value })}
+                                value={this.state.payments.length === 1 ? this.state.payments[0].fee : this.state.fee}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (this.state.payments.length === 1) {
+                                    this.handlePaymentChange(0, 'fee', val);
+                                  } else {
+                                    this.setState({ fee: val });
+                                  }
+                                }}
                               />
                             ) : null;
                           })()}
@@ -2515,17 +2836,22 @@ class Invoice extends React.PureComponent {
                         type='number'
                         min='0'
                         step='1'
-                        style={this.state.payments.length > 0 ? { ...inputStyle, background: '#f8fafc' } : inputStyle}
-                        value={this.state.payments.length > 0 ? this.state.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) : (this.state.paid)}
+                        style={this.state.payments.length > 1 ? { ...inputStyle, background: '#f8fafc' } : inputStyle}
+                        value={this.state.payments.length > 1 ? this.state.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) : (this.state.payments.length === 1 ? this.state.payments[0].amount : this.state.paid)}
                         onChange={e => {
-                          if (this.state.payments.length === 0) {
-                            this.setState({
-                              isPaidChanged: true,
-                              paid: e.target.value // Keep as string to allow empty
-                            })
+                          const val = e.target.value;
+                          if (this.state.payments.length <= 1) {
+                            if (this.state.payments.length === 1) {
+                              this.handlePaymentChange(0, 'amount', val);
+                            } else {
+                              this.setState({
+                                isPaidChanged: true,
+                                paid: val // Keep as string to allow empty
+                              })
+                            }
                           }
                         }}
-                        readOnly={this.state.payments.length > 0}
+                        readOnly={this.state.payments.length > 1}
                         placeholder="0"
                       />
                     </div>
@@ -2540,116 +2866,119 @@ class Invoice extends React.PureComponent {
                     </div>
                   </div>
                 </div>
+
+                {/* Action Buttons at Sidebar Bottom */}
                 <div
+                  className="action-buttons-bottom"
                   style={{
                     display: 'flex',
-                    justifyContent: 'flex-end',
-                    gap: '8px',
-                    marginTop: '6px'
+                    flexWrap: 'wrap',
+                    gap: '4px',
+                    paddingTop: '15px',
+                    marginTop: '10px',
+                    borderTop: '1px solid #f1f5f9'
                   }}
                 >
-                  {this.state.invoiceItems.some(item => item.product || (item.productName && item.productName.trim() !== '')) && (
-                    <div style={{
-                      marginRight: '15px',
-                      padding: '5px 10px',
-                      color: this.state.isSaved ? '#16a34a' : '#dc2626',
-                      fontSize: '12px',
+                  <button
+                    style={{
+                      backgroundColor: '#f3e8ff',
+                      color: '#8b5cf6',
+                      border: 'none',
+                      padding: '8px 10px',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '11px',
                       fontWeight: '600',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '5px'
-                    }}>
-                      <i className={`fa ${this.state.isSaved ? 'fa-check-circle' : 'fa-exclamation-circle'}`}></i>
-                      {this.state.isSaved ? 'Saved' : 'Unsaved'}
-                    </div>
-                  )}
+                      gap: '4px',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onClick={e => this.handleShareInvoice(e)}
+                    title="Share as Image"
+                  >
+                    <i className="fa fa-share-alt"></i> Share
+                  </button>
                   <button
                     style={{
                       backgroundColor: '#f1f5f9',
-                      border: 'none',
                       color: '#64748b',
-                      padding: '10px 14px',
+                      border: 'none',
+                      padding: '8px 10px',
                       borderRadius: '8px',
                       cursor: 'pointer',
-                      fontSize: '12px',
+                      fontSize: '11px',
+                      fontWeight: '600',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '6px',
-                      fontWeight: '600',
-                      transition: 'all 0.2s ease'
+                      gap: '4px'
                     }}
                     onClick={this.handleOpenInvoiceListModal}
-                    title="Show Invoices"
+                    title="Invoice List"
                   >
-                    <i className="fa fa-list" aria-hidden="true"></i>
-                    List
+                    <i className="fa fa-list"></i> List
                   </button>
                   <button
                     style={{
                       backgroundColor: '#dcfce7',
-                      border: 'none',
                       color: '#16a34a',
-                      padding: '10px 14px',
+                      border: 'none',
+                      padding: '8px 10px',
                       borderRadius: '8px',
                       cursor: 'pointer',
-                      fontSize: '12px',
+                      fontSize: '11px',
+                      fontWeight: '600',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '6px',
-                      fontWeight: '600',
-                      transition: 'all 0.2s ease'
+                      gap: '4px'
                     }}
                     onClick={this.handleSaveInvoice}
                   >
-                    <i className="fa fa-save" aria-hidden="true"></i>
-                    Save
+                    <i className="fa fa-save"></i> Save
                   </button>
-
                   <button
                     style={{
                       backgroundColor: '#e0f2fe',
-                      border: 'none',
                       color: '#0284c7',
-                      padding: '10px 14px',
+                      border: 'none',
+                      padding: '8px 10px',
                       borderRadius: '8px',
                       cursor: 'pointer',
-                      fontSize: '12px',
+                      fontSize: '11px',
+                      fontWeight: '600',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '6px',
-                      fontWeight: '600',
-                      transition: 'all 0.2s ease'
+                      gap: '4px'
                     }}
                     onClick={this.handleNewInvoice}
                   >
-                    <i className="fa fa-plus" aria-hidden="true"></i>
-                    New
+                    <i className="fa fa-plus"></i> New
                   </button>
                   <button
                     style={{
-                      backgroundColor: '#3b82f6',
+                      backgroundColor: '#dbeafe',
+                      color: '#2563eb',
                       border: 'none',
-                      color: 'white',
-                      padding: '10px 14px',
+                      padding: '8px 10px',
                       borderRadius: '8px',
                       cursor: 'pointer',
-                      fontSize: '12px',
+                      fontSize: '11px',
+                      fontWeight: '600',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '6px',
-                      fontWeight: '600',
-                      transition: 'all 0.2s ease'
+                      gap: '4px'
                     }}
                     onClick={this.handlePrintInvoice}
                   >
-                    <i className="fa fa-print" aria-hidden="true"></i>
-                    Print
+                    <i className="fa fa-print"></i> Print
                   </button>
                 </div>
               </div>
             </div>
-          </div >
+          </div>
         )}
+
+
         {/* Stock Management Modal */}
         <StockModal
           isOpen={this.state.isStockModalOpen}
@@ -2664,6 +2993,110 @@ class Invoice extends React.PureComponent {
           onRequestClose={this.handleCloseInvoiceListModal}
           onSelectInvoice={this.handleSelectInvoiceFromList}
         />
+
+        {/* Share Modal */}
+        {
+          this.state.isShareModalOpen && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.7)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 9999,
+              padding: '20px'
+            }}>
+              <div style={{
+                backgroundColor: 'white',
+                borderRadius: '16px',
+                width: '100%',
+                maxWidth: '650px',
+                maxHeight: '90vh',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden'
+              }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h6 style={{ margin: 0, fontWeight: 'bold', color: '#1e293b' }}>Share Invoice Image</h6>
+                  <button onClick={this.handleCloseShareModal} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748b' }}>&times;</button>
+                </div>
+                <div style={{ padding: '20px', overflowY: 'auto', flex: 1, backgroundColor: '#f8fafc', textAlign: 'center' }}>
+                  {this.state.isGeneratingImage ? (
+                    <div style={{ padding: '40px 0' }}>
+                      <LoadingIndicator inline />
+                      <p style={{ marginTop: '10px', color: '#64748b' }}>Generating high-quality image...</p>
+                    </div>
+                  ) : (
+                    <img
+                      src={this.state.sharableImage}
+                      alt="Invoice Preview"
+                      style={{
+                        maxWidth: '100%',
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                        borderRadius: '4px',
+                        border: '1px solid #e2e8f0'
+                      }}
+                    />
+                  )}
+                </div>
+                <div style={{ padding: '16px 20px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'center', gap: '12px' }}>
+                  <button
+                    onClick={this.handleDownloadInvoiceImage}
+                    disabled={!this.state.sharableImage}
+                    style={{
+                      backgroundColor: '#f1f5f9',
+                      color: '#475569',
+                      border: 'none',
+                      padding: '10px 20px',
+                      borderRadius: '8px',
+                      fontWeight: '600',
+                      cursor: this.state.sharableImage ? 'pointer' : 'not-allowed',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    <i className="fa fa-download" /> Download
+                  </button>
+                  <button
+                    onClick={this.handleSendInvoiceWhatsApp}
+                    disabled={!this.state.sharableImage}
+                    style={{
+                      backgroundColor: '#22c55e',
+                      color: 'white',
+                      border: 'none',
+                      padding: '10px 20px',
+                      borderRadius: '8px',
+                      fontWeight: '600',
+                      cursor: this.state.sharableImage ? 'pointer' : 'not-allowed',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    <i className="fa fa-whatsapp" /> Send (WhatsApp)
+                  </button>
+                </div>
+              </div>
+            </div>
+          )
+        }
+
+        {/* Hidden area for image capture - Optimized for dom-to-image */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: '-2000px', // Move it far away but keep it "visible" in DOM flow
+          width: '600px',
+          zIndex: -9999,
+          backgroundColor: 'white'
+        }}>
+          {this.renderSharableInvoiceJSX()}
+        </div>
       </>
     );
   }
