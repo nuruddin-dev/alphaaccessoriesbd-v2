@@ -2068,6 +2068,88 @@ class Invoice extends React.PureComponent {
     }
   };
 
+  // Helper to convert dataURI to Blob
+  dataURItoBlob(dataURI) {
+    const byteString = atob(dataURI.split(',')[1]);
+    const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+      ia[i] = byteString.charCodeAt(i);
+    }
+    return new Blob([ab], { type: mimeString });
+  }
+
+  handleCopyInvoiceImage = async () => {
+    const { sharableImage } = this.state;
+    if (!sharableImage) return;
+
+    try {
+      const blob = this.dataURItoBlob(sharableImage);
+      // Clipboard API requires secure context (HTTPS or localhost)
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          [blob.type]: blob
+        })
+      ]);
+      // Alert removed
+    } catch (err) {
+      console.error('Failed to copy image:', err);
+      alert('Failed to copy image. Your browser might not support this feature.');
+    }
+  };
+
+
+
+  handleWhatsAppShare = async () => {
+    const { sharableImage, customerInfo, invoiceInfo } = this.state;
+    if (!sharableImage) return;
+
+    try {
+      const blob = this.dataURItoBlob(sharableImage);
+      const file = new File([blob], `Invoice-${invoiceInfo.number}.png`, { type: 'image/png' });
+
+      // 1. Try Native Share (Mobile - Auto Attach)
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: `Invoice #${invoiceInfo.number}`,
+            text: `Invoice #${invoiceInfo.number}`
+          });
+          return; // Success, stop here
+        } catch (shareError) {
+          console.log('Native share cancelled or failed, falling back to copy/paste', shareError);
+        }
+      }
+
+      // 2. Desktop Fallback: Copy to Clipboard
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          [blob.type]: blob
+        })
+      ]);
+
+      // 3. Prepare Phone & URL
+      let phone = customerInfo.phone || '';
+      phone = phone.replace(/\D/g, '');
+      if (phone.startsWith('01') && phone.length === 11) phone = '88' + phone;
+
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      const url = phone
+        ? (isMobile ? `https://api.whatsapp.com/send?phone=${phone}` : `https://web.whatsapp.com/send?phone=${phone}`)
+        : (isMobile ? `https://api.whatsapp.com/send` : `https://web.whatsapp.com`);
+
+      // 4. Notify & Open
+      // Alert removed
+      window.open(url, '_blank');
+
+    } catch (err) {
+      console.error('Share failed:', err);
+      alert('Could not share image. Please download and send manually.');
+    }
+  };
+
   render() {
     const { products, isLoading } = this.props;
     const {
@@ -3063,10 +3145,28 @@ class Invoice extends React.PureComponent {
                     <i className="fa fa-download" /> Download
                   </button>
                   <button
-                    onClick={this.handleSendInvoiceWhatsApp}
+                    onClick={this.handleCopyInvoiceImage}
                     disabled={!this.state.sharableImage}
                     style={{
-                      backgroundColor: '#22c55e',
+                      backgroundColor: '#e0f2fe', // Light blue
+                      color: '#0284c7', // Darker blue text
+                      border: 'none',
+                      padding: '10px 20px',
+                      borderRadius: '8px',
+                      fontWeight: '600',
+                      cursor: this.state.sharableImage ? 'pointer' : 'not-allowed',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    <i className="fa fa-copy" /> Copy
+                  </button>
+                  <button
+                    onClick={this.handleWhatsAppShare}
+                    disabled={!this.state.sharableImage}
+                    style={{
+                      backgroundColor: '#25D366', // WhatsApp Green
                       color: 'white',
                       border: 'none',
                       padding: '10px 20px',
@@ -3078,7 +3178,7 @@ class Invoice extends React.PureComponent {
                       gap: '8px'
                     }}
                   >
-                    <i className="fa fa-whatsapp" /> Send (WhatsApp)
+                    <i className="fa fa-whatsapp" /> WhatsApp
                   </button>
                 </div>
               </div>
