@@ -31,6 +31,7 @@ import MyShop from '../../../containers/MyShop';
 import AccountsManager from '../../../containers/AccountsManager';
 import Import from '../../../containers/Import';
 import Supplier from '../../../containers/Supplier';
+import Challan from '../../../containers/Challan';
 
 const Admin = props => {
   const location = useLocation();
@@ -80,7 +81,7 @@ const Admin = props => {
               <Route exact path='/dashboard' component={Account} />
               <Route path='/dashboard/invoice' component={Invoice} />
               <Route path='/dashboard/accounts' component={AccountsManager} />
-              <Route path='/dashboard/myshop' component={MyShop} />
+              <Route path='/dashboard/sales-overview' component={MyShop} />
               <Route path='/dashboard/customer' component={Customer} />
               <Route path='/dashboard/security' component={AccountSecurity} />
               <Route path='/dashboard/address' component={Address} />
@@ -96,6 +97,7 @@ const Admin = props => {
               <Route path='/dashboard/wishlist' component={Wishlist} />
               <Route path='/dashboard/import' component={Import} />
               <Route path='/dashboard/supplier' component={Supplier} />
+              <Route path='/dashboard/lendings' component={Challan} />
               <Route path='*' component={Page404} />
             </Switch>
           </div>

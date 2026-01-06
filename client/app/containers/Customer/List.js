@@ -42,7 +42,7 @@ class List extends React.PureComponent {
   handleCheckDiscrepancies = async () => {
     this.setState({ isChecking: true });
     try {
-      const response = await axios.get(`${API_URL}/payment/check-ledger-discrepancies`);
+      const response = await axios.get(`${API_URL}/payment/check-ledger-discrepancies?ts=${Date.now()}`);
       const { discrepancies } = response.data;
       if (discrepancies.length > 0) {
         this.setState({ discrepancies, isDiscrepancyModalOpen: true });

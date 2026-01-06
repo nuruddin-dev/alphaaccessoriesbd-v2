@@ -143,6 +143,16 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
         .json({ error: 'This invoice number already exists.' });
     }
 
+    // Sanitize customer and payments
+    let sanitizedCustomer = customer;
+    if (sanitizedCustomer === '') sanitizedCustomer = null;
+
+    let sanitizedPayments = payments || [];
+    if (Array.isArray(sanitizedPayments)) {
+      sanitizedPayments = sanitizedPayments.filter(p => p.account && p.account !== '');
+    }
+
+
     // Enrich items with buyingPrice from the database
     const enrichedItems = await Promise.all(items.map(async (item) => {
       let buyingPrice = 0;
@@ -172,7 +182,7 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
     const invoice = new Invoice({
       invoiceNumber,
       createdBy,
-      customer,
+      customer: sanitizedCustomer,
       customerName,
       customerPhone,
       items: enrichedItems,
@@ -182,13 +192,13 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
       grandTotal: grandTotal, // Use frontend value
       paid: paid || 0,
       due: due, // Use frontend value
-      due: due, // Use frontend value
       paymentMethod: paymentMethod || 'cash',
-      payments: payments || [], // Save payments array
+      payments: sanitizedPayments, // Save payments array
       totalFee: calculatedTotalFee,
       notes,
       isWholesale: isWholesale
     });
+
 
     const savedInvoice = await invoice.save();
 
@@ -272,6 +282,18 @@ router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
   try {
     const invoiceId = req.params.id;
     const update = req.body;
+
+    // Sanitize update object to avoid Mongoose casting errors
+    if (update.customer === '') update.customer = null;
+    if (update.payments && Array.isArray(update.payments)) {
+      update.payments = update.payments.filter(p => p.account && p.account !== '');
+    }
+    if (update.items && Array.isArray(update.items)) {
+      update.items = update.items.map(item => ({
+        ...item,
+        product: item.product === '' ? null : item.product
+      }));
+    }
 
     const existingInvoice = await Invoice.findById(invoiceId);
 

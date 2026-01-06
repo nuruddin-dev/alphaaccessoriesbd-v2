@@ -18,6 +18,7 @@ const orderNowRoutes = require('./orderNow');
 const reviewRoutes = require('./review');
 const wishlistRoutes = require('./wishlist');
 const sitemapRoutes = require('./sitemap'); // Import the sitemap route
+const challanRoutes = require('./challan');
 
 // auth routes
 router.use('/auth', authRoutes);
@@ -93,6 +94,9 @@ router.use('/import', importRoutes);
 // Supplier routes
 const supplierRoutes = require('./supplier');
 router.use('/supplier', supplierRoutes);
+
+// Challan routes
+router.use('/challan', challanRoutes);
 
 
 module.exports = router;

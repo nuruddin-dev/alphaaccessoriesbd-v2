@@ -13,8 +13,8 @@
       "icon": "fa-bank"
     },
     {
-      "to": "/myshop",
-      "name": "My Shop",
+      "to": "/sales-overview",
+      "name": "Sales Overview",
       "prefix": "/dashboard",
       "icon": "fa-shopping-bag"
     },
@@ -29,6 +29,12 @@
       "name": "Suppliers",
       "prefix": "/dashboard",
       "icon": "fa-handshake-o"
+    },
+    {
+      "to": "/lendings",
+      "name": "Landings",
+      "prefix": "/dashboard",
+      "icon": "fa-truck"
     },
     {
       "to": "/security",

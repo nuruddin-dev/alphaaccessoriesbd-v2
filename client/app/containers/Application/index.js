@@ -45,6 +45,7 @@ const AboutUs = React.lazy(() => import('../AboutUs'));
 const Page404 = React.lazy(() => import('../../components/Common/Page404'));
 const BrandsShop = React.lazy(() => import('../BrandsShop'));
 const CategoryShop = React.lazy(() => import('../CategoryShop'));
+const Invoice = React.lazy(() => import('../Invoice'));
 
 async function fetchCategoriesAndBrands() {
   try {
@@ -181,6 +182,8 @@ class Application extends React.PureComponent {
                   />
                   <Route path='/auth/success' component={AuthSuccess} />
                   <Route path='/support' component={Support} />
+                  <Route exact path='/dashboard/invoice/view' component={Invoice} />
+                  <Route path='/dashboard/invoice/view/:id' component={Invoice} />
                   <Route path='/dashboard' component={Dashboard} />
                   <Route path='/404' component={Page404} />
                   <Route path='/:slug' component={DynamicRouteHandler} />

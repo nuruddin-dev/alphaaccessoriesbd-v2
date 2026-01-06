@@ -21,7 +21,7 @@ router.get('/ledger/:customerId', auth, async (req, res) => {
         const customer = await Customer.findById(customerId)
             .populate({
                 path: 'purchase_history',
-                select: 'invoiceNumber grandTotal subTotal previousDue discount paid due created items'
+                select: 'invoiceNumber grandTotal subTotal previousDue discount paid due created items totalFee'
             });
 
         if (!customer) {
@@ -47,8 +47,13 @@ router.get('/ledger/:customerId', auth, async (req, res) => {
                         discount: invoice.discount || 0,
                         grandTotal: invoice.grandTotal || 0,
                         paid: invoice.paid || 0,
+                        totalFee: invoice.totalFee || 0,
                         due: invoice.due || 0,
-                        items: invoice.items ? invoice.items.length : 0,
+                        items: invoice.items ? invoice.items.map(item => ({
+                            name: item.productName,
+                            quantity: item.quantity,
+                            unitPrice: item.unitPrice
+                        })) : [],
                         _id: invoice._id
                     });
                 }
@@ -92,7 +97,7 @@ router.get('/ledger/:customerId', auth, async (req, res) => {
 
             if (entry.type === 'invoice') {
                 const discount = entry.discount || 0;
-                const checkoutPaid = entry.paid || 0;
+                const checkoutPaid = (entry.paid || 0) - (entry.totalFee || 0);
 
                 const debit = (entry.subTotal || 0) - discount;
                 const credit = checkoutPaid;
@@ -166,7 +171,7 @@ router.get('/check-ledger-discrepancies', auth, role.check(ROLES.Admin), async (
         const allCustomers = await Customer.find({})
             .populate({
                 path: 'purchase_history',
-                select: 'subTotal previousDue discount paid created'
+                select: 'subTotal previousDue discount paid totalFee created'
             })
             .select('name phoneNumber due purchase_history payment_history');
 
@@ -193,7 +198,7 @@ router.get('/check-ledger-discrepancies', auth, role.check(ROLES.Admin), async (
             const allPayments = customer.payment_history || [];
             // Impact on balance is 0 because payments are reflected in invoice 'paid' field
             for (const payment of allPayments) {
-                // runningBalance remains unchanged
+                runningBalance -= ((payment.amount || 0) - (payment.fee || 0));
             }
 
             // Check difference
@@ -273,7 +278,7 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
         const customerWithInvoices = await Customer.findById(customerId)
             .populate({
                 path: 'purchase_history',
-                select: 'subTotal previousDue discount paid created'
+                select: 'subTotal previousDue discount paid totalFee created'
             });
 
         // Calculate running balance using the same logic as ledger endpoint
@@ -292,7 +297,7 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
                 isFirstInvoice = false;
             }
             const discount = invoice.discount || 0;
-            runningBalance += (invoice.subTotal || 0) - discount - (invoice.paid || 0);
+            runningBalance += (invoice.subTotal || 0) - discount - ((invoice.paid || 0) - (invoice.totalFee || 0));
         }
 
         const allPayments = customerWithInvoices.payment_history || [];
@@ -312,13 +317,22 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
                 accountDoc.balance += Number(amount);
                 await accountDoc.save();
 
+                // Fetch Invoice Number if relatedInvoice is present
+                let invoiceRefNumber = '';
+                if (relatedInvoice) {
+                    const invDoc = await Invoice.findById(relatedInvoice);
+                    if (invDoc) {
+                        invoiceRefNumber = invDoc.invoiceNumber;
+                    }
+                }
+
                 const transaction = new Transaction({
                     account: accountDoc._id,
                     type: 'credit',
                     amount: Number(amount),
                     reference: customerDoc.name,
                     referenceId: relatedInvoice || customerDoc._id,
-                    description: `Payment from ${customerDoc.name} ${relatedInvoice ? '(Invoice #' + relatedInvoice + ')' : ''}`,
+                    description: `Payment from ${customerDoc.name} ${invoiceRefNumber ? '(Invoice #' + invoiceRefNumber + ')' : ''}`,
                     date: new Date()
                 });
                 await transaction.save();
@@ -390,7 +404,7 @@ router.delete('/:customerId/:paymentId', auth, role.check(ROLES.Admin), async (r
         const customerWithInvoices = await Customer.findById(customerId)
             .populate({
                 path: 'purchase_history',
-                select: 'subTotal previousDue discount paid created'
+                select: 'subTotal previousDue discount paid totalFee created'
             });
 
         let runningBalance = 0;
@@ -406,7 +420,7 @@ router.delete('/:customerId/:paymentId', auth, role.check(ROLES.Admin), async (r
                 isFirstInvoice = false;
             }
             const discount = invoice.discount || 0;
-            runningBalance += (invoice.subTotal || 0) - discount - (invoice.paid || 0);
+            runningBalance += (invoice.subTotal || 0) - discount - ((invoice.paid || 0) - (invoice.totalFee || 0));
         }
 
         const allPayments = customerWithInvoices.payment_history || [];

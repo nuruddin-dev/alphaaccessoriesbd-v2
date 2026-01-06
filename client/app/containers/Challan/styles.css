@@ -1,0 +1,48 @@
+.challan-container {
+    padding: 10px;
+}
+
+.challan-container .search-dropdown div:hover {
+    background-color: #f8f9fa;
+}
+
+.challan-container .add-view {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.challan-container .card {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.challan-container .table thead th {
+    border-top: none;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #64748b;
+    padding: 15px;
+}
+
+.challan-container .table td {
+    padding: 15px;
+    vertical-align: middle;
+}
+
+.challan-container .badge {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-weight: 500;
+}

@@ -65,7 +65,8 @@ class Invoice extends React.PureComponent {
     fee: '', // Fee for single payment mode
     isShareModalOpen: false, // State for Share Modal
     sharableImage: null, // Data URL of generated image
-    isGeneratingImage: false // Track image generation status
+    isGeneratingImage: false, // Track image generation status
+    isViewOnly: false // New state for view-only mode
   };
 
   // LocalStorage keys for caching
@@ -146,8 +147,51 @@ class Invoice extends React.PureComponent {
     if (this._isMounted) {
       this.loadInvoiceFromURL();
       this.fetchAccounts();
+      this.handlePrefillFromURL();
     }
   }
+
+  handlePrefillFromURL = () => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const prefillDataStr = urlParams.get('prefill');
+      if (prefillDataStr) {
+        const prefillData = JSON.parse(decodeURIComponent(prefillDataStr));
+        const { customerName, customerPhone, items } = prefillData;
+
+        const newInvoiceItems = [...this.state.invoiceItems];
+        if (items && items.length > 0) {
+          items.forEach((item, index) => {
+            if (index < newInvoiceItems.length) {
+              newInvoiceItems[index] = {
+                product: item.product,
+                productName: item.productName,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                totalPrice: item.quantity * item.unitPrice
+              };
+            }
+          });
+        }
+
+        this.setState({
+          customerInfo: {
+            name: customerName || '',
+            phone: customerPhone || ''
+          },
+          invoiceItems: newInvoiceItems,
+          isWholesale: true // Assuming wholesale for lendings
+        }, () => {
+          // If customer phone is provided, try to fetch their due
+          if (customerPhone) {
+            this.handleCustomerPhoneChange(customerPhone);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error prefilling invoice:', error);
+    }
+  };
 
   fetchAccounts = async () => {
     try {
@@ -212,13 +256,21 @@ class Invoice extends React.PureComponent {
       const urlParams = new URLSearchParams(window.location.search);
       let invoiceNumber = urlParams.get('number');
 
-      // Alternative: Get from path (e.g., /invoice/1234567890123)
+      const pathParts = window.location.pathname.split('/');
+
+      // Check for 'view' in path
+      const isViewOnly = pathParts.includes('view');
+
+      // Alternative: Get from path (e.g., /invoice/123... or /invoice/view/123...)
       if (!invoiceNumber) {
-        const pathParts = window.location.pathname.split('/');
         const lastPart = pathParts[pathParts.length - 1];
         if (lastPart && lastPart.length === 13 && !isNaN(lastPart)) {
           invoiceNumber = lastPart;
         }
+      }
+
+      if (isViewOnly && this._isMounted) {
+        this.setState({ isViewOnly: true });
       }
 
       if (invoiceNumber && this._isMounted) {
@@ -318,6 +370,57 @@ class Invoice extends React.PureComponent {
       console.error('Error fetching invoice:', error);
       alert('Failed to fetch invoice. Please try again.');
       return false;
+    }
+  };
+
+  saveAsLendingToDatabase = async () => {
+    try {
+      const filledInvoiceItems = this.state.invoiceItems.filter(
+        item => (item.product || (item.productName && item.productName.trim() !== '')) &&
+          (item.quantity !== '' && item.quantity !== 0 && item.quantity !== null && item.quantity !== undefined)
+      );
+
+      if (filledInvoiceItems.length === 0) {
+        alert('Please add at least one product to the lending');
+        return false;
+      }
+
+      const items = filledInvoiceItems.map(item => ({
+        product: item.product ? (item.product._id || item.product) : null,
+        productName: item.productName || (item.product ? item.product.shortName || item.product.name : ''),
+        quantity: item.quantity || 1,
+        unitPrice: item.unitPrice || 0,
+        buyingPrice: item.buyingPrice || (item.product ? item.product.buyingPrice : 0) || 0,
+        totalPrice: item.totalPrice || 0
+      }));
+
+      const { customerInfo, notes, invoiceInfo } = this.state;
+
+      const payload = {
+        challanNumber: `LND-${invoiceInfo.number || Date.now()}`,
+        customerName: customerInfo.name || 'Walk-in Customer',
+        customerPhone: customerInfo.phone,
+        items,
+        notes,
+        createdBy: this.state.invoiceInfo.createdBy
+      };
+
+      const response = await axios.post(`${API_URL}/challan/create`, payload);
+      if (response.data.success) {
+        alert('Lending created and stock deducted successfully!');
+        return true;
+      }
+    } catch (error) {
+      console.error('Error saving lending:', error);
+      alert(error.response?.data?.error || 'Failed to save lending.');
+      return false;
+    }
+  };
+
+  handleSaveAsLending = async () => {
+    const success = await this.saveAsLendingToDatabase();
+    if (success) {
+      this.handleNewInvoice(); // Clear form after success
     }
   };
 
@@ -547,18 +650,6 @@ class Invoice extends React.PureComponent {
         isWholesale
       } = this.state;
 
-      // Calculate paid from payments array if used
-      const currentPaid = this.state.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-
-      // Determine payment method
-      let finalPaymentMethod = paymentMethod;
-      if (this.state.payments.length > 0) {
-        finalPaymentMethod = 'split';
-      } else if (currentPaid > 0) {
-        // If paid manual amount but no split payments? 
-        // But for backward compatibility, if payments is empty, treat as 'cash' or current selection.
-      }
-
       // If payments array is empty but paid > 0, create a single payment entry
       let finalPayments = this.state.payments;
       if (finalPayments.length === 0 && (paid || 0) > 0) {
@@ -568,19 +659,12 @@ class Invoice extends React.PureComponent {
             amount: paid,
             fee: Number(this.state.fee) || 0
           }];
-        } else {
-          // Fallback if no account selected? Maybe alert user?
-          // alert('Please select a payment account');
-          // return false;
-          // But let's be lenient and assume they might fix it later or legacy behavior.
-          // Actually, the backend needs an account for the new system.
-          if (this.state.accounts.length > 0) {
-            finalPayments = [{
-              account: this.state.accounts[0]._id, // Default to first account
-              amount: paid,
-              fee: Number(this.state.fee) || 0
-            }];
-          }
+        } else if (this.state.accounts.length > 0) {
+          finalPayments = [{
+            account: this.state.accounts[0]._id, // Default to first account
+            amount: paid,
+            fee: Number(this.state.fee) || 0
+          }];
         }
       }
 
@@ -592,44 +676,16 @@ class Invoice extends React.PureComponent {
           const response = await axios.get(
             `${API_URL}/customer/search/name/${customerInfo.name}`
           );
-          console.log('response: customer : ', response)
           if (response.data.customers && response.data.customers.length > 0) {
             customer = response.data.customers[0]._id;
           }
         } catch (error) {
-          console.log('Customer not found. New customer creating...');
+          console.log('Customer not found during checkout.');
         }
-        // const newCustomer = {
-        //   name: customerInfo.name,
-        //   phoneNumber: customerInfo.phone,
-        //   purchase_history: [currentInvoiceId], // must be an array of ObjectId(s)
-        //   due: this.state.due,
-        //   updated: new Date()
-        // };
-
-        // try {
-        //   const response = await axios.get(
-        //     `${API_URL}/customer/add/${newCustomer}`
-        //   );
-        //   console.log('Creating new custermer response: ', JSON.stringify(response))
-        // } catch (error) {
-        //   console.log('Creating new customer error: ', error);
-        // }
       }
 
-      // Search for customer by phone if needed
-      // if (customerInfo.phone) {
-      //   try {
-      //     const response = await axios.get(
-      //       `${API_URL}/customer/search/phone/${customerInfo.phone}`
-      //     );
-      //     if (response.data.customers && response.data.customers.length > 0) {
-      //       customer = response.data.customers[0]._id;
-      //     }
-      //   } catch (error) {
-      //     console.log('Customer not found');
-      //   }
-      // }
+      // Filter out payments with empty account IDs to avoid casting errors
+      finalPayments = finalPayments.filter(p => p.account && p.account !== '');
 
       // Create the invoice data object
       const invoiceData = {
@@ -639,23 +695,18 @@ class Invoice extends React.PureComponent {
         previousDue: previousDue || 0,
         discount: discount || 0,
         grandTotal: this.calculateFinalTotal(),
-        paid: this.state.payments.length > 0 ? currentPaid : (paid || 0),
-        due: this.calculateRemainingDue(),
-        paymentMethod: finalPaymentMethod || 'cash',
-        grandTotal: this.calculateFinalTotal(),
         paid: finalPayments.length > 0 ? finalPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) : (paid || 0),
         due: this.calculateRemainingDue(),
         paymentMethod: finalPayments.length > 1 ? 'split' : (paymentMethod || 'cash'),
         payments: finalPayments,
-        due: this.calculateRemainingDue(),
-        paymentMethod: paymentMethod || 'cash',
         notes: notes || '',
-        customer: customer,
+        customer: customer === '' ? null : customer,
         customerName: customerInfo.name,
         customerPhone: customerInfo.phone,
         createdBy: invoiceInfo.createdBy || 'Admin',
         isWholesale: isWholesale
       };
+
 
       let response = null;
       let invoiceExists = false;
@@ -665,18 +716,13 @@ class Invoice extends React.PureComponent {
       try {
         const invoiceNumber = invoiceInfo.number.toString();
 
-        console.log('invoice number : ', invoiceNumber, ' and type: ', typeof (invoiceNumber))
-
         const checkResponse = await axios.get(
           `${API_URL}/invoice/invoice/${invoiceNumber}`
         );
 
-        console.log('check response: ', checkResponse.toString())
-
         if (checkResponse.data.success && checkResponse.data.invoice) {
           invoiceExists = true;
           existingInvoiceId = checkResponse.data.invoice._id;
-          console.log('Invoice exists, will update it');
         }
       } catch (error) {
         // Only log "Invoice does not exist" if the error is a 404 (Not Found)
@@ -691,10 +737,8 @@ class Invoice extends React.PureComponent {
 
       // Update existing invoice or create new one
       if (invoiceExists && existingInvoiceId) {
-        console.log('Updating invoice...');
         response = await this.props.updateInvoice(existingInvoiceId, invoiceData);
       } else {
-        console.log('Creating new invoice...');
         response = await this.props.createInvoice(invoiceData);
       }
 
@@ -769,7 +813,7 @@ class Invoice extends React.PureComponent {
           console.error('dom-to-image capture error:', error);
           if (this._isMounted) {
             this.setState({ isGeneratingImage: false });
-            alert(`Could not generate image: ${error.message}`);
+            alert(`Could not generate image: ${error.message} `);
           }
         }
       } else {
@@ -789,7 +833,7 @@ class Invoice extends React.PureComponent {
     // Use a clean filename - remove all special characters except letters, numbers and dash
     const invoiceNum = invoiceInfo && invoiceInfo.number ? invoiceInfo.number : 'Draft';
     const safeName = invoiceNum.toString().replace(/[^a-z0-9]/gi, '-');
-    const fileName = `Invoice-${safeName}.png`;
+    const fileName = `Invoice - ${safeName}.png`;
 
     try {
       // Create a blob from the base64 string
@@ -869,11 +913,13 @@ class Invoice extends React.PureComponent {
    * Uses CSS to style the printed version.
    */
   handlePrintInvoice = async () => {
-    // First save the invoice to the database
-    const saveSuccessful = await this.saveInvoiceToDatabase();
+    // First save the invoice to the database ONLY if not in view-only mode
+    if (!this.state.isViewOnly) {
+      const saveSuccessful = await this.saveInvoiceToDatabase();
 
-    if (!saveSuccessful) {
-      return; // Don't proceed with printing if saving failed
+      if (!saveSuccessful) {
+        return; // Don't proceed with printing if saving failed
+      }
     }
 
     // Create a printable version
@@ -2186,6 +2232,267 @@ class Invoice extends React.PureComponent {
       }).slice(0, 50) // Limit to 50 results
       : allProducts;
 
+
+
+    // View-Only Render (similar to renderSharableCaptureNode but centered and styled for page display)
+    if (this.state.isViewOnly) {
+      // Check if invoice data is actually loaded (e.g. valid date in 20XX-XX-XX format or existing number)
+      // The default state has new Date() so checking date might be tricky unless we check against initial.
+      // Better check: is invoiceInfo.number valid (length 13 usually) or if we have items populated from fetch.
+      // But `handleNewInvoice` sets a default number.
+      // Let's rely on `isSearchInvoice` which usually indicates we are in "edit/view" mode of an existing invoice.
+      // OR check if we successfully fetched.
+      // Simple check: If `invoiceInfo.number` is length 13 (as per system standard) OR if the user manually entered it via our new search form.
+
+      const isInvoiceLoaded = this.state.invoiceInfo.number && this.state.invoiceInfo.number.length === 13 && this.state.invoiceItems.some(i => i.product || i.productName);
+
+      // If we are in view only mode but haven't loaded a valid invoice yet, show the search box
+      if (!isInvoiceLoaded) {
+        return (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '100vh',
+            backgroundColor: '#f8fafc',
+            fontFamily: 'Arial, sans-serif'
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              padding: '40px',
+              borderRadius: '12px',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+              textAlign: 'center',
+              width: '100%',
+              maxWidth: '400px'
+            }}>
+              <h2 style={{ color: '#1e293b', marginBottom: '20px' }}>View Invoice</h2>
+              <div style={{ marginBottom: '20px' }}>
+                <input
+                  type="text"
+                  placeholder="Enter Invoice Number"
+                  id="viewInvoiceSearchInput"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    fontSize: '16px',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    marginBottom: '10px',
+                    boxSizing: 'border-box'
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const val = e.target.value;
+                      if (val && val.length === 13) {
+                        this.fetchAndLoadInvoice(val);
+                      } else {
+                        alert('Please enter a valid 13-digit invoice number');
+                      }
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    const input = document.getElementById('viewInvoiceSearchInput');
+                    if (input && input.value && input.value.length === 13) {
+                      this.fetchAndLoadInvoice(input.value);
+                    } else {
+                      alert('Please enter a valid 13-digit invoice number');
+                    }
+                  }}
+                  style={{
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    border: 'none',
+                    padding: '12px 24px',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    cursor: 'pointer',
+                    width: '100%',
+                    fontWeight: '600'
+                  }}
+                >
+                  View Invoice
+                </button>
+              </div>
+              <div style={{ fontSize: '12px', color: '#64748b' }}>
+                Enter the 13-digit invoice number to view details.
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // Calculate totals for display
+      const grandTotalCalc = this.calculateGrandTotal();
+      const dueCalc = this.state.invoiceInfo.due !== undefined ? this.state.invoiceInfo.due : this.calculateRemainingDue(); // Prefer saved due if available
+      // The calculateGrandTotal returns a string "100", so parse it if needed, or use as is if strictly display
+      // But let's reuse helper methods or state if they are reliable.
+      // Actually, when loading from URL, state is populated.
+
+      // We'll use local variables mirroring the capture node logic
+      const filledInvoiceItems = invoiceItems.filter(
+        item => item.product || (item.productName && item.productName.trim() !== '') || item.quantity // Show valid items
+      );
+
+      // Calculate final total (Subtotal - Discount + Prev Due)
+      const subTotalVal = parseFloat(grandTotalCalc) || 0;
+      const prevDueVal = parseFloat(previousDue) || 0;
+      const discountVal = parseFloat(this.state.discount) || 0;
+      const finalTotalVal = subTotalVal + prevDueVal - discountVal;
+
+      return (
+        <div className="invoice-view-container" style={{
+          padding: '40px 20px',
+          minHeight: '100vh',
+          backgroundColor: '#f1f5f9', // Light gray background for the page
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'flex-start'
+        }}>
+          <div className="paper-sheet" style={{
+            width: '100%',
+            maxWidth: '800px', // Slightly wider for better web viewing
+            backgroundColor: 'white',
+            padding: '40px',
+            borderRadius: '8px',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            fontFamily: 'Arial, sans-serif',
+            color: '#333',
+            position: 'relative'
+          }}>
+            {/* Header / Actions specifically for View Only */}
+            <div style={{ position: 'absolute', top: '20px', right: '20px', display: 'flex', gap: '10px' }}>
+              <button
+                onClick={this.handlePrintInvoice}
+                style={{
+                  backgroundColor: '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px'
+                }}
+              >
+                <i className="fa fa-print"></i> Print
+              </button>
+            </div>
+
+
+            {/* Content mirroring renderSharableCaptureNode */}
+            <div style={{ marginTop: '20px' }}> {/* Add margin for top buttons */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px', borderBottom: '2px solid #f1f5f9', paddingBottom: '20px' }}>
+                <div style={{ width: '60%' }}>
+                  <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#dc2626', marginBottom: '8px' }}>Alpha</div>
+                  <div style={{ fontSize: '14px', lineHeight: '1.5', color: '#64748b' }}>
+                    ২৬, ২৭/২, ৪০ (৮ নং সিড়ি সংলগ্ন), তৃতীয় তলা<br />
+                    সুন্দরবন স্কয়ার সুপার মার্কেট, ঢাকা ১০০০<br />
+                    মোবাইল: ০১৮৩৮৬২৬১২১, ০১৮৬৯১১৬৬৯১
+                  </div>
+                </div>
+                <div style={{ width: '40%', textAlign: 'right' }}>
+                  <div style={{ marginBottom: '5px' }}>
+                    <span style={{ fontSize: '12px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Invoice No & Date</span><br />
+                    <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#1e293b' }}>#{invoiceInfo.number}</span>
+                    <div style={{ fontSize: '14px', color: '#334155', marginTop: '2px' }}>{invoiceInfo.date ? new Date(invoiceInfo.date).toLocaleDateString('en-GB') : 'N/A'}</div>
+                  </div>
+                  <div style={{ marginTop: '15px' }}>
+                    <span style={{ fontSize: '12px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Bill To</span><br />
+                    <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#1e293b' }}>{customerInfo.name || 'Walk-in Customer'}</span>
+                    <div style={{ fontSize: '14px', color: '#334155', marginTop: '2px' }}>{customerInfo.phone}</div>
+                    {customerInfo.address && <div style={{ fontSize: '14px', color: '#334155' }}>{customerInfo.address}</div>}
+                  </div>
+                </div>
+              </div>
+
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '30px', fontSize: '14px' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                    <th style={{ padding: '12px 15px', textAlign: 'left', fontWeight: '600', color: '#475569', width: '40%' }}>Product Description</th>
+                    <th style={{ padding: '12px 15px', textAlign: 'center', fontWeight: '600', color: '#475569', width: '15%' }}>Qty</th>
+                    <th style={{ padding: '12px 15px', textAlign: 'right', fontWeight: '600', color: '#475569', width: '20%' }}>Unit Price</th>
+                    <th style={{ padding: '12px 15px', textAlign: 'right', fontWeight: '600', color: '#475569', width: '25%' }}>Amount (Tk)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filledInvoiceItems.map((item, index) => (
+                    <tr key={index} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '12px 15px', color: '#334155' }}>{item.productName || (item.product ? item.product.shortName || item.product.name : '')}</td>
+                      <td style={{ padding: '12px 15px', textAlign: 'center', color: '#334155' }}>{item.quantity}</td>
+                      <td style={{ padding: '12px 15px', textAlign: 'right', color: '#334155' }}>{Number(item.unitPrice).toLocaleString()}</td>
+                      <td style={{ padding: '12px 15px', textAlign: 'right', fontWeight: '500', color: '#1e293b' }}>{Number(item.totalPrice).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                  {filledInvoiceItems.length === 0 && (
+                    <tr>
+                      <td colSpan="4" style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>No items in invoice</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <div style={{ width: '45%' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                    <tbody>
+                      <tr>
+                        <td style={{ padding: '8px 0', color: '#64748b' }}>Subtotal:</td>
+                        <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 'bold', color: '#1e293b' }}>{Number(grandTotalCalc).toLocaleString()} Tk</td>
+                      </tr>
+                      {previousDue > 0 && (
+                        <tr>
+                          <td style={{ padding: '8px 0', color: '#64748b' }}>Previous Due:</td>
+                          <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 'bold', color: '#1e293b' }}>{Number(previousDue).toLocaleString()} Tk</td>
+                        </tr>
+                      )}
+                      {discountVal > 0 && (
+                        <tr>
+                          <td style={{ padding: '8px 0', color: '#64748b' }}>Discount:</td>
+                          <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 'bold', color: '#16a34a' }}>- {Number(discountVal).toLocaleString()} Tk</td>
+                        </tr>
+                      )}
+                      <tr style={{ borderTop: '2px solid #e2e8f0', borderBottom: '2px solid #e2e8f0' }}>
+                        <td style={{ padding: '12px 0', fontWeight: 'bold', color: '#1e293b', fontSize: '16px' }}>Grand Total:</td>
+                        <td style={{ padding: '12px 0', textAlign: 'right', fontWeight: 'bold', color: '#1e293b', fontSize: '16px' }}>{Number(finalTotalVal).toLocaleString()} Tk</td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: '12px 0 8px 0', color: '#64748b' }}>Paid Amount:</td>
+                        <td style={{ padding: '12px 0 8px 0', textAlign: 'right', fontWeight: 'bold', color: '#1e293b' }}>{Number(this.state.paid || 0).toLocaleString()} Tk</td>
+                      </tr>
+                      <tr>
+                        <td style={{ padding: '8px 0', color: '#dc2626', fontWeight: 'bold' }}>Net Due:</td>
+                        <td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 'bold', color: '#dc2626', fontSize: '15px' }}>
+                          {Number(dueCalc).toLocaleString()} Tk
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {this.state.notes && (
+                <div style={{ marginTop: '30px', padding: '15px', backgroundColor: '#fff7ed', borderRadius: '6px', borderLeft: '4px solid #f97316', fontSize: '13px', color: '#9a3412' }}>
+                  <strong>Note:</strong> {this.state.notes}
+                </div>
+              )}
+
+              <div style={{ marginTop: '50px', textAlign: 'center', fontSize: '12px', color: '#94a3b8', borderTop: '1px solid #f1f5f9', paddingTop: '20px' }}>
+                <p>Thank you for shopping with Alpha!</p>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      );
+    } // End View-Only Render
+
     // Styles - Minimal Light Compact Theme
     const tableStyle = {
       width: '100%',
@@ -2390,6 +2697,7 @@ class Invoice extends React.PureComponent {
                               className='invoice-row-input'
                               style={searchBoxStyle}
                               placeholder='Search products...'
+                              disabled={this.state.isViewOnly}
                               value={
                                 focusedRowIndex === index
                                   ? searchTerm
@@ -2488,6 +2796,7 @@ class Invoice extends React.PureComponent {
                               className='invoice-row-input'
                               style={inputStyle}
                               value={item.quantity}
+                              disabled={this.state.isViewOnly}
                               onChange={e =>
                                 this.handleQuantityChange(index, e.target.value)
                               }
@@ -2508,6 +2817,7 @@ class Invoice extends React.PureComponent {
                               this.handleUnitPriceChange(index, e.target.value)
                             }
                             onKeyDown={e => this.handleKeyDown(e, index)}
+                            disabled={this.state.isViewOnly}
                           />
                         </td>
 
@@ -2564,45 +2874,49 @@ class Invoice extends React.PureComponent {
                   )}
 
                   {/* Refresh Button */}
-                  <button
-                    style={{
-                      background: isLoadingProducts ? '#dbeafe' : '#f1f5f9',
-                      border: 'none',
-                      cursor: isLoadingProducts ? 'not-allowed' : 'pointer',
-                      fontSize: '15px',
-                      color: isLoadingProducts ? '#3b82f6' : '#64748b',
-                      padding: '10px 12px',
-                      borderRadius: '8px',
-                      transition: 'all 0.2s ease',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}
-                    onClick={this.handleRefreshProducts}
-                    disabled={isLoadingProducts}
-                    title={`Refresh products (${allProducts.length} cached)`}
-                  >
-                    <i className={`fa fa-refresh ${isLoadingProducts ? 'fa-spin' : ''}`} aria-hidden="true"></i>
-                    <span style={{ fontSize: '11px' }}>{allProducts.length}</span>
-                  </button>
+                  {!this.state.isViewOnly && (
+                    <button
+                      style={{
+                        background: isLoadingProducts ? '#dbeafe' : '#f1f5f9',
+                        border: 'none',
+                        cursor: isLoadingProducts ? 'not-allowed' : 'pointer',
+                        fontSize: '15px',
+                        color: isLoadingProducts ? '#3b82f6' : '#64748b',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                      onClick={this.handleRefreshProducts}
+                      disabled={isLoadingProducts}
+                      title={`Refresh products (${allProducts.length} cached)`}
+                    >
+                      <i className={`fa fa-refresh ${isLoadingProducts ? 'fa-spin' : ''}`} aria-hidden="true"></i>
+                      <span style={{ fontSize: '11px' }}>{allProducts.length}</span>
+                    </button>
+                  )}
 
                   {/* Stock Button */}
-                  <button
-                    style={{
-                      background: '#f1f5f9',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: '15px',
-                      color: '#64748b',
-                      padding: '10px 12px',
-                      borderRadius: '8px',
-                      transition: 'all 0.2s ease'
-                    }}
-                    onClick={this.handleStock}
-                    title="Stock"
-                  >
-                    <i className="fa fa-cubes" aria-hidden="true"></i>
-                  </button>
+                  {!this.state.isViewOnly && (
+                    <button
+                      style={{
+                        background: '#f1f5f9',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '15px',
+                        color: '#64748b',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onClick={this.handleStock}
+                      title="Stock"
+                    >
+                      <i className="fa fa-cubes" aria-hidden="true"></i>
+                    </button>
+                  )}
 
                   <div style={{ flex: 1 }}>
                     <input
@@ -2611,6 +2925,7 @@ class Invoice extends React.PureComponent {
                       value={this.state.notes || ''}
                       onChange={e => this.handleNotesChange(e.target.value)}
                       placeholder='Enter notes here'
+                      disabled={this.state.isViewOnly}
                     />
                   </div>
                 </div>
@@ -2632,6 +2947,7 @@ class Invoice extends React.PureComponent {
                             this.handleInvoiceInfoChange('number', e.target.value)
                           }
                           placeholder='Enter Invoice Number'
+                          disabled={this.state.isViewOnly}
                         />
                       </div>
                     </div>
@@ -2641,15 +2957,17 @@ class Invoice extends React.PureComponent {
                       <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '8px' }}>
                         <label style={{ display: 'block', marginBottom: '8px', fontSize: '11px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
                           Payments
-                          <button
-                            onClick={this.handleAddPayment}
-                            style={{
-                              border: 'none', background: 'none', color: '#3b82f6',
-                              cursor: 'pointer', float: 'right', fontSize: '11px', fontWeight: 600
-                            }}
-                          >
-                            + Add
-                          </button>
+                          {!this.state.isViewOnly && (
+                            <button
+                              onClick={this.handleAddPayment}
+                              style={{
+                                border: 'none', background: 'none', color: '#3b82f6',
+                                cursor: 'pointer', float: 'right', fontSize: '11px', fontWeight: 600
+                              }}
+                            >
+                              + Add
+                            </button>
+                          )}
                         </label>
                         {this.state.payments.map((payment, idx) => {
                           // Find the selected account to check its type
@@ -2662,6 +2980,7 @@ class Invoice extends React.PureComponent {
                                 style={{ ...inputStyle, flex: 2 }}
                                 value={payment.account}
                                 onChange={(e) => this.handlePaymentChange(idx, 'account', e.target.value)}
+                                disabled={this.state.isViewOnly}
                               >
                                 <option value="">Select Account</option>
                                 {this.state.accounts.map(acc => (
@@ -2674,6 +2993,7 @@ class Invoice extends React.PureComponent {
                                 placeholder="Amount"
                                 value={payment.amount}
                                 onChange={(e) => this.handlePaymentChange(idx, 'amount', e.target.value)}
+                                disabled={this.state.isViewOnly}
                               />
                               {isMobileBanking && (
                                 <input
@@ -2683,14 +3003,17 @@ class Invoice extends React.PureComponent {
                                   title="Transaction Fee"
                                   value={payment.fee}
                                   onChange={(e) => this.handlePaymentChange(idx, 'fee', e.target.value)}
+                                  disabled={this.state.isViewOnly}
                                 />
                               )}
-                              <button
-                                onClick={() => this.handleRemovePayment(idx)}
-                                style={{ border: 'none', background: '#fee2e2', color: '#ef4444', borderRadius: '4px', cursor: 'pointer', padding: '0 8px' }}
-                              >
-                                ✕
-                              </button>
+                              {!this.state.isViewOnly && (
+                                <button
+                                  onClick={() => this.handleRemovePayment(idx)}
+                                  style={{ border: 'none', background: '#fee2e2', color: '#ef4444', borderRadius: '4px', cursor: 'pointer', padding: '0 8px' }}
+                                >
+                                  ✕
+                                </button>
+                              )}
                             </div>
                           );
                         })}
@@ -2699,12 +3022,14 @@ class Invoice extends React.PureComponent {
                       <div>
                         <label style={{ display: 'block', marginBottom: '4px', fontSize: '11px', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
                           Payment Account:
-                          <span
-                            onClick={this.handleSwitchToMultiPay}
-                            style={{ float: 'right', color: '#3b82f6', cursor: 'pointer', fontSize: '10px' }}
-                          >
-                            Multi-Pay
-                          </span>
+                          {!this.state.isViewOnly && (
+                            <span
+                              onClick={this.handleSwitchToMultiPay}
+                              style={{ float: 'right', color: '#3b82f6', cursor: 'pointer', fontSize: '10px' }}
+                            >
+                              Multi-Pay
+                            </span>
+                          )}
                         </label>
                         <div style={{ display: 'flex', gap: '5px' }}>
                           <select
@@ -2718,6 +3043,7 @@ class Invoice extends React.PureComponent {
                                 this.setState({ selectedAccount: val });
                               }
                             }}
+                            disabled={this.state.isViewOnly}
                           >
                             <option value="">Select Account</option>
                             {this.state.accounts.map(acc => (
@@ -2743,6 +3069,7 @@ class Invoice extends React.PureComponent {
                                     this.setState({ fee: val });
                                   }
                                 }}
+                                disabled={this.state.isViewOnly}
                               />
                             ) : null;
                           })()}
@@ -2764,6 +3091,7 @@ class Invoice extends React.PureComponent {
                         onChange={e =>
                           this.handleInvoiceInfoChange('date', e.target.value)
                         }
+                        disabled={this.state.isViewOnly}
                       />
                     </div>
                     <div style={{ flex: 1 }}>
@@ -2814,6 +3142,7 @@ class Invoice extends React.PureComponent {
                       onBlur={this.handleBlurCustomerName}
                       onKeyDown={this.handleCustomerKeyDown} // Handle key navigation
                       placeholder='Customer Name'
+                      disabled={this.state.isViewOnly}
                     />
                     {focusedCustomerSearch && filteredCustomers.length > 0 && (
                       <div style={resultsContainerStyle}>
@@ -2843,6 +3172,7 @@ class Invoice extends React.PureComponent {
                         this.handleCustomerPhoneChange(e.target.value)
                       } // Updates state on change
                       placeholder='Phone Number'
+                      disabled={this.state.isViewOnly}
                     />
                     {this.state.isSearchingCustomer && <p>Searching...</p>}
                   </div>
@@ -2874,6 +3204,7 @@ class Invoice extends React.PureComponent {
                             previousDue: parseFloat(e.target.value) || 0
                           })
                         }
+                        disabled={this.state.isViewOnly}
                       />
                     </div>
                   </div>
@@ -2904,6 +3235,7 @@ class Invoice extends React.PureComponent {
                             discount: parseFloat(e.target.value) || 0
                           })
                         }
+                        disabled={this.state.isViewOnly}
                       />
                     </div>
                   </div>
@@ -2920,6 +3252,7 @@ class Invoice extends React.PureComponent {
                         step='1'
                         style={this.state.payments.length > 1 ? { ...inputStyle, background: '#f8fafc' } : inputStyle}
                         value={this.state.payments.length > 1 ? this.state.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) : (this.state.payments.length === 1 ? this.state.payments[0].amount : this.state.paid)}
+                        disabled={this.state.isViewOnly}
                         onChange={e => {
                           const val = e.target.value;
                           if (this.state.payments.length <= 1) {
@@ -3000,42 +3333,67 @@ class Invoice extends React.PureComponent {
                   >
                     <i className="fa fa-list"></i> List
                   </button>
-                  <button
-                    style={{
-                      backgroundColor: '#dcfce7',
-                      color: '#16a34a',
-                      border: 'none',
-                      padding: '8px 10px',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontSize: '11px',
-                      fontWeight: '600',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px'
-                    }}
-                    onClick={this.handleSaveInvoice}
-                  >
-                    <i className="fa fa-save"></i> Save
-                  </button>
-                  <button
-                    style={{
-                      backgroundColor: '#e0f2fe',
-                      color: '#0284c7',
-                      border: 'none',
-                      padding: '8px 10px',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontSize: '11px',
-                      fontWeight: '600',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px'
-                    }}
-                    onClick={this.handleNewInvoice}
-                  >
-                    <i className="fa fa-plus"></i> New
-                  </button>
+                  {!this.state.isViewOnly && (
+                    <button
+                      style={{
+                        backgroundColor: '#fff7ed',
+                        color: '#f97316',
+                        border: 'none',
+                        padding: '8px 10px',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                      onClick={this.handleSaveAsLending}
+                      title="Convert current items to a Landing"
+                    >
+                      <i className="fa fa-truck"></i> Landing
+                    </button>
+                  )}
+                  {!this.state.isViewOnly && (
+                    <button
+                      style={{
+                        backgroundColor: '#dcfce7',
+                        color: '#16a34a',
+                        border: 'none',
+                        padding: '8px 10px',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                      onClick={this.handleSaveInvoice}
+                    >
+                      <i className="fa fa-save"></i> Save
+                    </button>
+                  )}
+                  {!this.state.isViewOnly && (
+                    <button
+                      style={{
+                        backgroundColor: '#e0f2fe',
+                        color: '#0284c7',
+                        border: 'none',
+                        padding: '8px 10px',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                      onClick={this.handleNewInvoice}
+                    >
+                      <i className="fa fa-plus"></i> New
+                    </button>
+                  )}
                   <button
                     style={{
                       backgroundColor: '#dbeafe',
