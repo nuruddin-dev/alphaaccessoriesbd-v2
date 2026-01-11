@@ -1,7 +1,7 @@
 const express = require('express');
 const Mongoose = require('mongoose');
 const router = express.Router();
-const Import = require('../../models/import');
+const ImportOrder = require('../../models/import');
 const Product = require('../../models/product');
 const auth = require('../../middleware/auth');
 const role = require('../../middleware/role');
@@ -43,7 +43,7 @@ const generateShipmentId = () => {
 // @access  Private
 router.get('/', auth, async (req, res) => {
     try {
-        const imports = await Import.find()
+        const imports = await ImportOrder.find()
             .populate('supplier')
             .sort('-created');
         res.status(200).json({ imports });
@@ -57,7 +57,7 @@ router.get('/', auth, async (req, res) => {
 // @access  Private
 router.get('/by-supplier/:supplierId', auth, async (req, res) => {
     try {
-        const imports = await Import.find({ supplier: req.params.supplierId })
+        const imports = await ImportOrder.find({ supplier: req.params.supplierId })
             .populate('supplier')
             .populate('items.product', 'name shortName sku')
             .sort('-created');
@@ -72,7 +72,7 @@ router.get('/by-supplier/:supplierId', auth, async (req, res) => {
 // @access  Private
 router.get('/:id', auth, async (req, res) => {
     try {
-        const importOrder = await Import.findById(req.params.id)
+        const importOrder = await ImportOrder.findById(req.params.id)
             .populate('supplier')
             .populate('items.product', 'name shortName sku');
         res.status(200).json({ importOrder });
@@ -88,7 +88,7 @@ router.post('/add', auth, role.check(ROLES.Admin), async (req, res) => {
     try {
         const { supplier, orderDate, notes, items, costs } = req.body;
 
-        const importOrder = new Import({
+        const importOrder = new ImportOrder({
             orderNumber: `IMP-${Date.now()}`,
             supplier,
             orderDate,
@@ -117,7 +117,7 @@ router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
         const update = req.body;
         const query = { _id: req.params.id };
 
-        const importOrder = await Import.findOneAndUpdate(query, update, {
+        const importOrder = await ImportOrder.findOneAndUpdate(query, update, {
             new: true
         });
 
@@ -137,7 +137,7 @@ router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
 router.post('/:id/shipment/add', auth, role.check(ROLES.Admin), async (req, res) => {
     try {
         const { shipmentDate, items, note, shipmentId } = req.body;
-        const order = await Import.findById(req.params.id);
+        const order = await ImportOrder.findById(req.params.id);
 
         if (!order) {
             return res.status(404).json({ error: 'Order not found.' });
@@ -171,7 +171,7 @@ router.post('/:id/shipment/add', auth, role.check(ROLES.Admin), async (req, res)
 router.put('/:id/shipment/:shipmentId/item', auth, role.check(ROLES.Admin), async (req, res) => {
     try {
         const { product, modelName, shortName, quantity, priceRMB, priceBDT, quantityPerCtn, ctn, perCtnWeight } = req.body;
-        const order = await Import.findById(req.params.id);
+        const order = await ImportOrder.findById(req.params.id);
 
         if (!order) {
             return res.status(404).json({ error: 'Order not found.' });
@@ -238,7 +238,7 @@ router.put('/:id/shipment/:shipmentId/item', auth, role.check(ROLES.Admin), asyn
 // @access  Private
 router.delete('/:id/shipment/:shipmentId/item/:itemId', auth, role.check(ROLES.Admin), async (req, res) => {
     try {
-        const order = await Import.findById(req.params.id);
+        const order = await ImportOrder.findById(req.params.id);
 
         if (!order) {
             return res.status(404).json({ error: 'Order not found.' });
@@ -281,7 +281,7 @@ router.delete('/:id/shipment/:shipmentId/item/:itemId', auth, role.check(ROLES.A
 // @access  Private
 router.post('/:id/shipment/:shipmentId/item/:itemId/move-to-shipped', auth, role.check(ROLES.Admin), async (req, res) => {
     try {
-        const order = await Import.findById(req.params.id);
+        const order = await ImportOrder.findById(req.params.id);
 
         if (!order) {
             return res.status(404).json({ error: 'Order not found.' });
@@ -395,7 +395,7 @@ router.post('/:id/shipment/:shipmentId/item/:itemId/move-to-shipped', auth, role
 // @access  Private
 router.post('/:id/shipment/:shipmentId/complete', auth, role.check(ROLES.Admin), async (req, res) => {
     try {
-        const order = await Import.findById(req.params.id);
+        const order = await ImportOrder.findById(req.params.id);
         if (!order) return res.status(404).json({ error: 'Order not found.' });
 
         let shipment;
@@ -429,7 +429,7 @@ router.post('/:id/shipment/:shipmentId/complete', auth, role.check(ROLES.Admin),
 // @access  Private
 router.post('/:id/shipment/:shipmentId/undo-complete', auth, role.check(ROLES.Admin), async (req, res) => {
     try {
-        const order = await Import.findById(req.params.id);
+        const order = await ImportOrder.findById(req.params.id);
         if (!order) return res.status(404).json({ error: 'Order not found.' });
 
         let shipment;
@@ -459,7 +459,7 @@ router.post('/:id/shipment/:shipmentId/undo-complete', auth, role.check(ROLES.Ad
 // @access  Private
 router.post('/:id/shipment/:shipmentId/item/:itemId/undo-shipped', auth, role.check(ROLES.Admin), async (req, res) => {
     try {
-        const order = await Import.findById(req.params.id);
+        const order = await ImportOrder.findById(req.params.id);
         if (!order) return res.status(404).json({ error: 'Order not found.' });
 
         let sourceShipment;
@@ -523,7 +523,7 @@ router.post('/:id/shipment/:shipmentId/item/:itemId/undo-shipped', auth, role.ch
 router.put('/:id/shipment/:shipmentId/mark-shipped', auth, role.check(ROLES.Admin), async (req, res) => {
     try {
         const { shipmentDate } = req.body;
-        const order = await Import.findById(req.params.id);
+        const order = await ImportOrder.findById(req.params.id);
 
         if (!order) {
             return res.status(404).json({ error: 'Order not found.' });
@@ -570,7 +570,7 @@ router.put('/:id/shipment/:shipmentId/mark-shipped', auth, role.check(ROLES.Admi
 router.post('/:id/receive', auth, role.check(ROLES.Admin), async (req, res) => {
     try {
         const { shipmentId, receivedDate } = req.body;
-        const order = await Import.findById(req.params.id);
+        const order = await ImportOrder.findById(req.params.id);
 
         if (!order) {
             return res.status(404).json({ error: 'Order not found.' });
@@ -668,7 +668,7 @@ router.post('/:id/receive', auth, role.check(ROLES.Admin), async (req, res) => {
 router.put('/:id/shipment/:shipmentId/received-date', auth, role.check(ROLES.Admin), async (req, res) => {
     try {
         const { receivedDate } = req.body;
-        const order = await Import.findById(req.params.id);
+        const order = await ImportOrder.findById(req.params.id);
 
         if (!order) {
             return res.status(404).json({ error: 'Order not found.' });
@@ -705,7 +705,7 @@ router.put('/:id/shipment/:shipmentId/received-date', auth, role.check(ROLES.Adm
 // @access  Private
 router.delete('/:id/shipment/:shipmentId', auth, role.check(ROLES.Admin), async (req, res) => {
     try {
-        const order = await Import.findById(req.params.id);
+        const order = await ImportOrder.findById(req.params.id);
 
         if (!order) {
             return res.status(404).json({ error: 'Order not found.' });
@@ -747,7 +747,7 @@ router.delete('/:id/shipment/:shipmentId', auth, role.check(ROLES.Admin), async 
 // @access  Private
 router.post('/:id/shipment/create-pending', auth, role.check(ROLES.Admin), async (req, res) => {
     try {
-        const order = await Import.findById(req.params.id);
+        const order = await ImportOrder.findById(req.params.id);
 
         if (!order) {
             return res.status(404).json({ error: 'Order not found.' });

@@ -71,6 +71,14 @@ router.use('/review', reviewRoutes);
 // Wishlist routes
 router.use('/wishlist', wishlistRoutes);
 
+// Import routes
+const importRoutes = require('./import');
+router.use('/import', importRoutes);
+
+// Supplier routes
+const supplierRoutes = require('./supplier');
+router.use('/supplier', supplierRoutes);
+
 // Sitemap route
 router.use('/', sitemapRoutes);
 
@@ -87,16 +95,12 @@ router.use('/payment', paymentRoutes);
 const accountRoutes = require('./account');
 router.use('/account', accountRoutes);
 
-// Import routes
-const importRoutes = require('./import');
-router.use('/import', importRoutes);
-
-// Supplier routes
-const supplierRoutes = require('./supplier');
-router.use('/supplier', supplierRoutes);
-
 // Challan routes
 router.use('/challan', challanRoutes);
+
+// MyShop Management routes
+const myshopManagementRoutes = require('./myshop');
+router.use('/myshop-mgmt', myshopManagementRoutes);
 
 
 module.exports = router;

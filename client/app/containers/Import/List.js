@@ -7,7 +7,8 @@ import { API_URL } from '../../constants';
 class ImportList extends React.PureComponent {
     state = {
         imports: [],
-        isLoading: false
+        isLoading: false,
+        error: null
     };
 
     componentDidMount() {
@@ -16,12 +17,15 @@ class ImportList extends React.PureComponent {
 
     fetchImports = async () => {
         try {
-            this.setState({ isLoading: true });
+            this.setState({ isLoading: true, error: null });
             const response = await axios.get(`${API_URL}/import`);
             this.setState({ imports: response.data.imports, isLoading: false });
         } catch (error) {
             console.error('Error fetching imports:', error);
-            this.setState({ isLoading: false });
+            this.setState({
+                isLoading: false,
+                error: 'Could not load import orders. Please check your connection or login again.'
+            });
         }
     };
 
@@ -71,7 +75,14 @@ class ImportList extends React.PureComponent {
                                         </td>
                                     </tr>
                                 ))}
-                                {imports.length === 0 && !isLoading && (
+                                {error && (
+                                    <tr>
+                                        <td colSpan="6" className="text-center py-5">
+                                            <p className="text-danger mb-0">{error}</p>
+                                        </td>
+                                    </tr>
+                                )}
+                                {imports.length === 0 && !isLoading && !error && (
                                     <tr>
                                         <td colSpan="6" className="text-center py-5">
                                             <p className="text-muted mb-0">No import orders found.</p>

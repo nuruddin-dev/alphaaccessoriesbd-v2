@@ -1,7 +1,7 @@
 module.exports = {
   app: {
     name: 'E-commerce',
-    apiURL: `${process.env.BASE_API_URL}`,
+    apiURL: process.env.BASE_API_URL || 'api',
     clientURL:
       process.env.NODE_ENV === 'production'
         ? process.env.CLIENT_URL_PRODUCTION

@@ -152,9 +152,19 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
       sanitizedPayments = sanitizedPayments.filter(p => p.account && p.account !== '');
     }
 
+    let sanitizedItems = items || [];
+    if (Array.isArray(sanitizedItems)) {
+      sanitizedItems = sanitizedItems.map(item => ({
+        ...item,
+        product: item.product === '' ? null : item.product
+      }));
+    }
+
+
 
     // Enrich items with buyingPrice from the database
-    const enrichedItems = await Promise.all(items.map(async (item) => {
+    const enrichedItems = await Promise.all(sanitizedItems.map(async (item) => {
+
       let buyingPrice = 0;
       if (item.product) {
         const productDoc = await Product.findById(item.product);
@@ -203,8 +213,8 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
     const savedInvoice = await invoice.save();
 
     // Update customer's purchase history and recalculate due amount if a customer is associated
-    if (customer) {
-      const customerDoc = await Customer.findById(customer);
+    if (sanitizedCustomer) {
+      const customerDoc = await Customer.findById(sanitizedCustomer);
       if (customerDoc) {
         if (!customerDoc.purchase_history) {
           customerDoc.purchase_history = [];
@@ -213,9 +223,10 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
         await customerDoc.save();
 
         // Recalculate customer's due based on ledger calculation
-        await recalculateCustomerDue(customer);
+        await recalculateCustomerDue(sanitizedCustomer);
       }
     } else if (customerName && customerPhone) {
+
       // Create a new customer if customer details are provided but no customer ID
       const newCustomer = new Customer({
         name: customerName,
@@ -745,7 +756,12 @@ module.exports = router;
 const updateProductStock = async (items, operation) => {
   if (!items || items.length === 0) return;
 
-  const bulkOps = items.map(item => {
+  // Filter out items without a valid product ID to avoid Mongoose casting errors
+  const validItems = items.filter(item => item.product && item.product !== '');
+  if (validItems.length === 0) return;
+
+  const bulkOps = validItems.map(item => {
+
     // If operation is 'add' (invoice created/updated), we subtract quantity from stock.
     // If operation is 'remove' (invoice deleted/reverted), we add quantity to stock.
     // Note: item.quantity can be negative (return).

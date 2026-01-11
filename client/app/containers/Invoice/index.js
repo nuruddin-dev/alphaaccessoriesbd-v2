@@ -2918,6 +2918,26 @@ class Invoice extends React.PureComponent {
                     </button>
                   )}
 
+                  {/* Landing Button */}
+                  {!this.state.isViewOnly && (
+                    <button
+                      style={{
+                        background: '#fff7ed',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '15px',
+                        color: '#f97316',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onClick={this.handleSaveAsLending}
+                      title="Convert current items to a Landing"
+                    >
+                      <i className="fa fa-truck" aria-hidden="true"></i>
+                    </button>
+                  )}
+
                   <div style={{ flex: 1 }}>
                     <input
                       type='text'
@@ -3333,27 +3353,6 @@ class Invoice extends React.PureComponent {
                   >
                     <i className="fa fa-list"></i> List
                   </button>
-                  {!this.state.isViewOnly && (
-                    <button
-                      style={{
-                        backgroundColor: '#fff7ed',
-                        color: '#f97316',
-                        border: 'none',
-                        padding: '8px 10px',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}
-                      onClick={this.handleSaveAsLending}
-                      title="Convert current items to a Landing"
-                    >
-                      <i className="fa fa-truck"></i> Landing
-                    </button>
-                  )}
                   {!this.state.isViewOnly && (
                     <button
                       style={{

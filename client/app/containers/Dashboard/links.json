@@ -13,6 +13,12 @@
       "icon": "fa-bank"
     },
     {
+      "to": "/myshop",
+      "name": "MyShop",
+      "prefix": "/dashboard",
+      "icon": "fa-shopping-cart"
+    },
+    {
       "to": "/sales-overview",
       "name": "Sales Overview",
       "prefix": "/dashboard",

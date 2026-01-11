@@ -7,7 +7,8 @@ import { API_URL } from '../../constants';
 class SupplierList extends React.PureComponent {
     state = {
         suppliers: [],
-        isLoading: false
+        isLoading: false,
+        error: null
     };
 
     componentDidMount() {
@@ -16,12 +17,15 @@ class SupplierList extends React.PureComponent {
 
     fetchSuppliers = async () => {
         try {
-            this.setState({ isLoading: true });
+            this.setState({ isLoading: true, error: null });
             const response = await axios.get(`${API_URL}/supplier`);
             this.setState({ suppliers: response.data.suppliers, isLoading: false });
         } catch (error) {
             console.error('Error fetching suppliers:', error);
-            this.setState({ isLoading: false });
+            this.setState({
+                isLoading: false,
+                error: 'Could not load suppliers. Please check your connection or login again.'
+            });
         }
     };
 
@@ -71,7 +75,14 @@ class SupplierList extends React.PureComponent {
                                         </td>
                                     </tr>
                                 ))}
-                                {suppliers.length === 0 && !isLoading && (
+                                {error && (
+                                    <tr>
+                                        <td colSpan="5" className="text-center py-5">
+                                            <p className="text-danger mb-0">{error}</p>
+                                        </td>
+                                    </tr>
+                                )}
+                                {suppliers.length === 0 && !isLoading && !error && (
                                     <tr>
                                         <td colSpan="5" className="text-center py-5">
                                             <p className="text-muted mb-0">No suppliers found.</p>

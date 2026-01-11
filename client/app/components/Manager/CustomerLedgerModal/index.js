@@ -409,20 +409,24 @@ class CustomerLedgerModal extends Component {
         const element = document.getElementById('ledger-capture-node');
         if (element) {
             try {
+                console.log('Ledger capture started. Dimensions:', element.offsetWidth, 'x', element.offsetHeight);
+
                 const imgData = await domtoimage.toPng(element, {
                     bgcolor: '#ffffff',
-                    quality: 1,
-                    pixelRatio: 2, // Better quality
-                    width: element.offsetWidth,
+                    width: 800,
                     height: element.offsetHeight,
                     style: {
-                        transform: 'none',
-                        margin: 0,
-                        display: 'block',
-                        visibility: 'visible',
-                        opacity: 1
-                    }
+                        'visibility': 'visible',
+                        'display': 'block',
+                        'opacity': '1',
+                        'transform': 'none'
+                    },
+                    pixelRatio: 2,
+                    cacheBust: true
                 });
+
+                console.log('Ledger capture completed. Data length:', imgData.length);
+
                 if (this._isMounted) {
                     this.setState({ sharableImage: imgData, isGeneratingImage: false });
                 }
@@ -485,7 +489,7 @@ class CustomerLedgerModal extends Component {
         return (
             <div id="ledger-capture-node" style={{
                 width: '800px',
-                padding: '10px 40px 40px 40px', // Reduced top padding
+                padding: '40px 40px 40px 40px', // Equal padding on all sides
                 background: 'white',
                 color: '#333',
                 fontFamily: 'Arial, sans-serif'
@@ -970,7 +974,15 @@ class CustomerLedgerModal extends Component {
                     </div>
                 </Modal>
 
-                <div style={{ position: 'fixed', top: 0, left: 0, zIndex: -100, opacity: 0, pointerEvents: 'none' }}>
+                {/* Hidden area for image capture - Matching invoice approach */}
+                <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: '-2000px',
+                    width: '800px',
+                    zIndex: -9999,
+                    backgroundColor: 'white'
+                }}>
                     {this.renderCaptureNode()}
                 </div>
             </>

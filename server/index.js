@@ -26,7 +26,9 @@ app.use(cors({
     'http://localhost:8080',
     'http://localhost:3000',
     'https://alphaaccessoriesbd.com',
-    'https://www.alphaaccessoriesbd.com'
+    'https://www.alphaaccessoriesbd.com',
+    'http://alphaaccessoriesbd.com',
+    'http://www.alphaaccessoriesbd.com'
   ],
   credentials: true
 }));

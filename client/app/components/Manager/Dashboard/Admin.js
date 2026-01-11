@@ -27,6 +27,7 @@ import Review from '../../../containers/Review';
 import Wishlist from '../../../containers/WishList';
 import Invoice from '../../../containers/Invoice';
 import Customer from '../../../containers/Customer';
+import SalesOverview from '../../../containers/SalesOverview';
 import MyShop from '../../../containers/MyShop';
 import AccountsManager from '../../../containers/AccountsManager';
 import Import from '../../../containers/Import';
@@ -81,7 +82,8 @@ const Admin = props => {
               <Route exact path='/dashboard' component={Account} />
               <Route path='/dashboard/invoice' component={Invoice} />
               <Route path='/dashboard/accounts' component={AccountsManager} />
-              <Route path='/dashboard/sales-overview' component={MyShop} />
+              <Route path='/dashboard/myshop' component={MyShop} />
+              <Route path='/dashboard/sales-overview' component={SalesOverview} />
               <Route path='/dashboard/customer' component={Customer} />
               <Route path='/dashboard/security' component={AccountSecurity} />
               <Route path='/dashboard/address' component={Address} />
