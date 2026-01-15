@@ -30,7 +30,8 @@ class SupplierList extends React.PureComponent {
     };
 
     render() {
-        const { suppliers, isLoading } = this.state;
+        const { suppliers, isLoading, error } = this.state;
+        const suppliersList = suppliers || [];
 
         return (
             <div className="supplier-list">
@@ -54,11 +55,11 @@ class SupplierList extends React.PureComponent {
                                 </tr>
                             </thead>
                             <tbody>
-                                {suppliers.map(supplier => (
+                                {suppliersList.map(supplier => (
                                     <tr
                                         key={supplier._id}
                                         style={{ cursor: 'pointer' }}
-                                        onClick={() => this.props.history.push(`/dashboard/supplier/orders/${supplier._id}`)}
+                                        onClick={() => this.props.history && this.props.history.push(`/dashboard/supplier/orders/${supplier._id}`)}
                                     >
                                         <td>
                                             <strong style={{ color: '#4F46E5' }}>{supplier.name}</strong>
@@ -82,7 +83,7 @@ class SupplierList extends React.PureComponent {
                                         </td>
                                     </tr>
                                 )}
-                                {suppliers.length === 0 && !isLoading && !error && (
+                                {suppliersList.length === 0 && !isLoading && !error && (
                                     <tr>
                                         <td colSpan="5" className="text-center py-5">
                                             <p className="text-muted mb-0">No suppliers found.</p>

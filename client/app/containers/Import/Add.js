@@ -258,7 +258,7 @@ class ImportAdd extends React.Component {
                 }}
             >
                 <option value="">Select Product</option>
-                {products.map(p => (
+                {productsList.map(p => (
                     <option key={p._id} value={p._id}>{p.shortName || p.name} ({p.sku})</option>
                 ))}
             </Input>
@@ -266,7 +266,9 @@ class ImportAdd extends React.Component {
     };
 
     render() {
-        const { suppliers, items, isEditing } = this.state;
+        const { suppliers, items, isEditing, products } = this.state;
+        const suppliersList = suppliers || [];
+        const productsList = products || [];
 
         return (
             <div className="import-add">
@@ -286,7 +288,7 @@ class ImportAdd extends React.Component {
                                             <Label>Supplier</Label>
                                             <Input type="select" name="supplier" value={this.state.supplier} onChange={this.handleInputChange}>
                                                 <option value="">Select Supplier</option>
-                                                {suppliers.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+                                                {suppliersList.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
                                             </Input>
                                         </FormGroup>
                                     </Col>

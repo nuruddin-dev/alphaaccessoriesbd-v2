@@ -68,6 +68,12 @@
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
 }
 
+/* Tabs in header (right side) */
+.supplier-orders__tabs--header {
+    margin-bottom: 0;
+    flex-shrink: 0;
+}
+
 .supplier-orders__tab {
     flex: 1;
     padding: 14px 24px;

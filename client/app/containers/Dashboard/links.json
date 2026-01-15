@@ -31,6 +31,12 @@
       "icon": "fa-ship"
     },
     {
+      "to": "/investors",
+      "name": "Investors",
+      "prefix": "/dashboard",
+      "icon": "fa-briefcase"
+    },
+    {
       "to": "/supplier",
       "name": "Suppliers",
       "prefix": "/dashboard",

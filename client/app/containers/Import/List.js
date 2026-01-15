@@ -30,7 +30,8 @@ class ImportList extends React.PureComponent {
     };
 
     render() {
-        const { imports, isLoading } = this.state;
+        const { imports, isLoading, error } = this.state;
+        const importsList = imports || [];
 
         return (
             <div className="import-list">
@@ -55,7 +56,7 @@ class ImportList extends React.PureComponent {
                                 </tr>
                             </thead>
                             <tbody>
-                                {imports.map(order => (
+                                {importsList.map(order => (
                                     <tr key={order._id}>
                                         <td>{order.orderNumber}</td>
                                         <td>{new Date(order.orderDate).toLocaleDateString()}</td>
@@ -82,7 +83,7 @@ class ImportList extends React.PureComponent {
                                         </td>
                                     </tr>
                                 )}
-                                {imports.length === 0 && !isLoading && !error && (
+                                {importsList.length === 0 && !isLoading && !error && (
                                     <tr>
                                         <td colSpan="6" className="text-center py-5">
                                             <p className="text-muted mb-0">No import orders found.</p>

@@ -57,7 +57,33 @@ class SupplierOrders extends React.Component {
         selectedMoveParams: null, // { importId, shipmentId, itemId }
 
         // Received date edit
-        editingReceivedDate: null
+        editingReceivedDate: null,
+
+        // Shipped date edit
+        editingShippedDate: null,
+
+        // Revert button for received shipments (double-click)
+        showRevertButton: null, // shipmentId of the shipment showing revert button
+
+        // Cargo selection state
+        cargos: [],
+        isCargoModalOpen: false,
+        isAddCargoModalOpen: false,
+        shipmentToComplete: null, // { importId, shipmentId }
+        selectedCargoId: '',
+        newCargo: {
+            name: '',
+            contactNumber: '',
+            address: '',
+            email: '',
+            notes: ''
+        },
+
+        // Investment state
+        investors: [],
+        selectedInvestorId: '',
+        investedAmount: 0,
+        profitSharePercentage: 50
     };
 
     componentDidMount() {
@@ -76,12 +102,70 @@ class SupplierOrders extends React.Component {
         this.fetchSupplier(id);
         this.fetchImports(id);
         this.fetchProducts();
+        this.fetchCargos();
+        this.fetchInvestors();
     }
+
+    fetchInvestors = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/investor`);
+            this.setState({ investors: response.data.investors || [] });
+        } catch (error) {
+            console.error('Error fetching investors:', error);
+        }
+    };
+
+    fetchCargos = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/cargo`);
+            this.setState({ cargos: response.data.cargos || [] });
+        } catch (error) {
+            console.error('Error fetching cargos:', error);
+        }
+    };
+
+    handleCargoInputChange = (field, value) => {
+        this.setState(prevState => ({
+            newCargo: {
+                ...prevState.newCargo,
+                [field]: value
+            }
+        }));
+    };
+
+    handleCreateCargo = async () => {
+        const { newCargo } = this.state;
+        if (!newCargo.name) return alert('Cargo name is required');
+
+        try {
+            this.setState({ isSubmitting: true });
+            const response = await axios.post(`${API_URL}/cargo/add`, newCargo);
+            const savedCargo = response.data.cargo;
+
+            this.setState(prevState => ({
+                cargos: [...prevState.cargos, savedCargo],
+                selectedCargoId: savedCargo._id,
+                isAddCargoModalOpen: false,
+                isSubmitting: false,
+                newCargo: {
+                    name: '',
+                    contactNumber: '',
+                    address: '',
+                    email: '',
+                    notes: ''
+                }
+            }));
+        } catch (error) {
+            this.setState({ isSubmitting: false });
+            alert('Error creating cargo: ' + (error.response?.data?.error || error.message));
+        }
+    };
 
     fetchSupplier = async (supplierId) => {
         try {
             const response = await axios.get(`${API_URL}/supplier`);
-            const supplier = response.data.suppliers.find(s => s._id === supplierId);
+            const suppliers = response.data.suppliers || [];
+            const supplier = suppliers.find(s => s._id === supplierId);
             this.setState({ supplier });
         } catch (error) {
             console.error('Error fetching supplier:', error);
@@ -331,13 +415,60 @@ class SupplierOrders extends React.Component {
         }
     };
 
-    handleCompleteShipment = async (importId, shipmentId) => {
-        if (!window.confirm('Mark this shipment as completed? New items will go to a new shipment ID.')) return;
+    handleCompleteShipment = (importId, shipmentId) => {
+        this.setState({
+            isCargoModalOpen: true,
+            shipmentToComplete: { importId, shipmentId },
+            selectedCargoId: ''
+        });
+    };
+
+    handleConfirmCompleteShipment = async () => {
+        const { shipmentToComplete, selectedCargoId, selectedInvestorId, investedAmount, profitSharePercentage, imports } = this.state;
+        if (!shipmentToComplete) return;
 
         try {
-            await axios.post(`${API_URL}/import/${importId}/shipment/${shipmentId}/complete`);
+            this.setState({ isSubmitting: true });
+
+            // 1. Mark shipment as complete
+            await axios.post(`${API_URL}/import/${shipmentToComplete.importId}/shipment/${shipmentToComplete.shipmentId}/complete`, {
+                cargo: selectedCargoId || null
+            });
+
+            // 2. If investor selected, record investment
+            if (selectedInvestorId && imports) {
+                const imp = imports.find(i => i._id === shipmentToComplete.importId);
+                if (imp && imp.shipments) {
+                    const shipment = imp.shipments.find(s =>
+                        (s._id || s.shipmentId)?.toString() === shipmentToComplete.shipmentId
+                    );
+                    if (shipment && shipment.items) {
+                        const totals = this.calculateShipmentTotals(shipment.items);
+
+                        await axios.post(`${API_URL}/investment/add`, {
+                            investorId: selectedInvestorId,
+                            importOrderId: shipmentToComplete.importId,
+                            shipmentId: shipment.shipmentId, // Save the user-friendly ID (e.g. S1)
+                            capitalAmount: investedAmount,
+                            totalShipmentCost: totals.totalBDT,
+                            profitSharePercentage: profitSharePercentage
+                        });
+                    }
+                }
+            }
+
+            this.setState({
+                isCargoModalOpen: false,
+                shipmentToComplete: null,
+                selectedCargoId: '',
+                selectedInvestorId: '',
+                investedAmount: 0,
+                isSubmitting: false
+            });
+
             setTimeout(() => this.fetchImports(this.props.match.params.id), 500);
         } catch (error) {
+            this.setState({ isSubmitting: false });
             alert('Error: ' + (error.response?.data?.error || error.message));
         }
     };
@@ -351,6 +482,28 @@ class SupplierOrders extends React.Component {
             console.error('Error reopening shipment:', error);
             alert('Error reopening shipment: ' + (error.response?.data?.error || error.message));
         }
+    };
+
+    // Revert received shipment back to shipped (undo stock and average price)
+    handleRevertToShipped = async (importId, shipmentId) => {
+        if (!window.confirm('Are you sure you want to revert this order to On The Way? Stock and buying prices will be undone.')) return;
+
+        try {
+            const sidStr = shipmentId?.toString() || shipmentId;
+            await axios.post(`${API_URL}/import/${importId}/shipment/${sidStr}/undo-receive`);
+            this.setState({ showRevertButton: null });
+            setTimeout(() => this.fetchImports(this.props.match.params.id), 500);
+        } catch (error) {
+            console.error('Error reverting shipment:', error);
+            alert('Error reverting shipment: ' + (error.response?.data?.error || error.message));
+        }
+    };
+
+    // Toggle showing revert button for received shipments (double-click)
+    handleCompletedDoubleClick = (shipmentId) => {
+        this.setState(prevState => ({
+            showRevertButton: prevState.showRevertButton === shipmentId ? null : shipmentId
+        }));
     };
 
     // Undo shipping for an item
@@ -387,6 +540,17 @@ class SupplierOrders extends React.Component {
         try {
             await axios.put(`${API_URL}/import/${importId}/shipment/${shipmentId}/received-date`, { receivedDate });
             this.setState({ editingReceivedDate: null });
+            setTimeout(() => this.fetchImports(this.props.match.params.id), 500);
+        } catch (error) {
+            alert('Error: ' + (error.response?.data?.error || error.message));
+        }
+    };
+
+    // Update shipped date
+    handleUpdateShippedDate = async (importId, shipmentId, shippedDate) => {
+        try {
+            await axios.put(`${API_URL}/import/${importId}/shipment/${shipmentId}/shipped-date`, { shippedDate });
+            this.setState({ editingShippedDate: null });
             setTimeout(() => this.fetchImports(this.props.match.params.id), 500);
         } catch (error) {
             alert('Error: ' + (error.response?.data?.error || error.message));
@@ -451,12 +615,16 @@ class SupplierOrders extends React.Component {
             isAddItemModalOpen: false,
             isEditItemModalOpen: false,
             isSelectShipmentModalOpen: false,
+            isCargoModalOpen: false,
+            isAddCargoModalOpen: false,
             selectedShipment: null,
             selectedImportId: null,
             selectedItem: null,
             openShipments: [],
             selectedMoveParams: null,
-            productSearch: ''
+            productSearch: '',
+            shipmentToComplete: null,
+            selectedCargoId: ''
         });
     };
 
@@ -527,6 +695,13 @@ class SupplierOrders extends React.Component {
 
             return { newItem: updatedItem };
         });
+    };
+
+    // Clear 0 value on focus for number inputs
+    handleInputFocus = (e) => {
+        if (e.target.value === '0') {
+            e.target.value = '';
+        }
     };
 
     handleCostingChange = (field, value) => {
@@ -651,14 +826,34 @@ class SupplierOrders extends React.Component {
                         <span className={`status-badge status-badge--${shipment.status.toLowerCase()}`}>
                             {shipment.status}
                         </span>
-                        {shipment.isCompleted && (
+                        {shipment.isCompleted && isShipped && (
                             <span
                                 className="status-badge status-badge--completed"
-                                style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', marginLeft: '8px', cursor: 'pointer' }}
+                                style={{
+                                    background: 'rgba(16, 185, 129, 0.1)',
+                                    color: '#10b981',
+                                    marginLeft: '8px',
+                                    cursor: 'pointer'
+                                }}
                                 onDoubleClick={() => this.handleUndoCompleteShipment(impId, sid)}
-                                title="Double click to undo completed"
+                                title="Double-click to undo completed"
                             >
                                 <i className="fa fa-lock"></i> COMPLETED
+                            </span>
+                        )}
+                        {isReceived && (
+                            <span
+                                className="status-badge status-badge--completed"
+                                style={{
+                                    background: this.state.showRevertButton === sid ? 'rgba(249, 115, 22, 0.15)' : 'rgba(16, 185, 129, 0.1)',
+                                    color: this.state.showRevertButton === sid ? '#ea580c' : '#10b981',
+                                    marginLeft: '8px',
+                                    cursor: 'pointer'
+                                }}
+                                onDoubleClick={() => this.handleCompletedDoubleClick(sid)}
+                                title="Double-click to show revert option"
+                            >
+                                <i className="fa fa-check-circle"></i> COMPLETED
                             </span>
                         )}
                         <div>
@@ -669,6 +864,33 @@ class SupplierOrders extends React.Component {
                                 {isReceived && 'Received: '}
                                 {new Date(isReceived ? shipment.receivedDate : (shipment.shipmentDate || shipment.created)).toLocaleDateString()}
 
+                                {shipment.cargo && (
+                                    <span className="shipment-card__cargo" style={{ marginLeft: '12px', padding: '2px 8px', background: 'rgba(6, 182, 212, 0.1)', color: '#06b6d4', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
+                                        <i className="fa fa-truck"></i> {shipment.cargo.name}
+                                    </span>
+                                )}
+
+                                {/* Shipped date edit */}
+                                {isShipped && this.state.editingShippedDate === sid && (
+                                    <div className="received-date-input">
+                                        <input
+                                            type="date"
+                                            defaultValue={new Date(shipment.shipmentDate || shipment.created).toISOString().slice(0, 10)}
+                                            onChange={(e) => this.handleUpdateShippedDate(impId, sid, e.target.value)}
+                                        />
+                                    </div>
+                                )}
+                                {isShipped && this.state.editingShippedDate !== sid && (
+                                    <button
+                                        className="btn-icon btn-icon--edit"
+                                        style={{ marginLeft: '8px', width: '24px', height: '24px', fontSize: '11px' }}
+                                        onClick={() => this.setState({ editingShippedDate: sid })}
+                                    >
+                                        <i className="fa fa-pencil"></i>
+                                    </button>
+                                )}
+
+                                {/* Received date edit */}
                                 {isReceived && this.state.editingReceivedDate === sid && (
                                     <div className="received-date-input">
                                         <input
@@ -810,12 +1032,14 @@ class SupplierOrders extends React.Component {
                         )}
                         {isShipped && (
                             <>
-                                <button
-                                    className="btn-neon btn-neon--green btn-neon--sm"
-                                    onClick={() => this.handleMarkReceived(impId, sid)}
-                                >
-                                    <i className="fa fa-check"></i> Mark as Received
-                                </button>
+                                {shipment.isCompleted && (
+                                    <button
+                                        className="btn-neon btn-neon--green btn-neon--sm"
+                                        onClick={() => this.handleMarkReceived(impId, sid)}
+                                    >
+                                        <i className="fa fa-check"></i> Mark as Received
+                                    </button>
+                                )}
                                 {!shipment.isCompleted && (
                                     <button
                                         className="btn-neon btn-neon--purple btn-neon--sm"
@@ -825,6 +1049,15 @@ class SupplierOrders extends React.Component {
                                     </button>
                                 )}
                             </>
+                        )}
+                        {isReceived && this.state.showRevertButton === sid && (
+                            <button
+                                className="btn-neon btn-neon--sm"
+                                style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}
+                                onClick={() => this.handleRevertToShipped(impId, sid)}
+                            >
+                                <i className="fa fa-undo"></i> Revert to On The Way
+                            </button>
                         )}
                     </div>
 
@@ -856,7 +1089,7 @@ class SupplierOrders extends React.Component {
         if (!isSelectShipmentModalOpen) return null;
 
         return (
-            <div className="modal-overlay" onClick={this.closeModals}>
+            <div className="modal-overlay">
                 <div className="modal-content modal-content--sm" onClick={e => e.stopPropagation()}>
                     <div className="modal-header">
                         <h3 className="modal-title">Select Target Shipment</h3>
@@ -912,61 +1145,13 @@ class SupplierOrders extends React.Component {
         if (!isOpen) return null;
 
         return (
-            <div className="modal-overlay" onClick={this.closeModals}>
+            <div className="modal-overlay">
                 <div className="modal-content modal-content--lg" onClick={e => e.stopPropagation()}>
                     <div className="modal-header">
                         <h3 className="modal-title">{isEdit ? 'Edit Item' : 'Add Item to Shipment'}</h3>
                         <button className="modal-close" onClick={this.closeModals}>&times;</button>
                     </div>
                     <div className="modal-body">
-                        {/* Costing Settings */}
-                        <div className="costing-section">
-                            <div className="costing-section__title">
-                                <i className="fa fa-calculator"></i> Costing Settings
-                            </div>
-                            <div className="form-row form-row--4">
-                                <div className="form-group">
-                                    <label className="form-label">RMB Rate (BDT)</label>
-                                    <input
-                                        type="number"
-                                        className="form-input"
-                                        value={costs.rmbRate}
-                                        onChange={(e) => this.handleCostingChange('rmbRate', e.target.value)}
-                                        step="0.1"
-                                    />
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">Labor Bill/Ctn</label>
-                                    <input
-                                        type="number"
-                                        className="form-input"
-                                        value={costs.labourBillPerCtn}
-                                        onChange={(e) => this.handleCostingChange('labourBillPerCtn', e.target.value)}
-                                    />
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">Tax Type</label>
-                                    <select
-                                        className="form-select"
-                                        value={costs.taxType}
-                                        onChange={(e) => this.handleCostingChange('taxType', e.target.value)}
-                                    >
-                                        <option value="per_item">Per Item</option>
-                                        <option value="per_kg">Per KG</option>
-                                    </select>
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">Tax Value {costs.taxType === 'per_kg' ? '(৳/kg)' : '(৳/pc)'}</label>
-                                    <input
-                                        type="number"
-                                        className="form-input"
-                                        value={costs.taxValue}
-                                        onChange={(e) => this.handleCostingChange('taxValue', e.target.value)}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
                         {/* Product Selection */}
                         <div className="form-group" style={{ position: 'relative' }}>
                             <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1052,6 +1237,7 @@ class SupplierOrders extends React.Component {
                                     className="form-input"
                                     value={newItem.quantityPerCtn}
                                     onChange={(e) => this.handleItemInputChange('quantityPerCtn', e.target.value)}
+                                    onFocus={this.handleInputFocus}
                                     min="0"
                                 />
                             </div>
@@ -1062,6 +1248,7 @@ class SupplierOrders extends React.Component {
                                     className="form-input"
                                     value={newItem.ctn}
                                     onChange={(e) => this.handleItemInputChange('ctn', e.target.value)}
+                                    onFocus={this.handleInputFocus}
                                     min="0"
                                 />
                             </div>
@@ -1081,6 +1268,7 @@ class SupplierOrders extends React.Component {
                                     className="form-input"
                                     value={newItem.perCtnWeight}
                                     onChange={(e) => this.handleItemInputChange('perCtnWeight', e.target.value)}
+                                    onFocus={this.handleInputFocus}
                                     min="0"
                                     step="0.1"
                                 />
@@ -1096,6 +1284,7 @@ class SupplierOrders extends React.Component {
                                     className="form-input"
                                     value={newItem.priceRMB}
                                     onChange={(e) => this.handleItemInputChange('priceRMB', e.target.value)}
+                                    onFocus={this.handleInputFocus}
                                     min="0"
                                     step="0.01"
                                 />
@@ -1110,6 +1299,57 @@ class SupplierOrders extends React.Component {
                                 />
                                 <div className="form-hint">
                                     = (RMB × Rate) + Tax/pc + Labor/pc
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Costing Settings - Moved below product info */}
+                        <div className="costing-section" style={{ marginTop: '20px' }}>
+                            <div className="costing-section__title">
+                                <i className="fa fa-calculator"></i> Costing Settings
+                            </div>
+                            <div className="form-row form-row--4">
+                                <div className="form-group">
+                                    <label className="form-label">RMB Rate (BDT)</label>
+                                    <input
+                                        type="number"
+                                        className="form-input"
+                                        value={costs.rmbRate}
+                                        onChange={(e) => this.handleCostingChange('rmbRate', e.target.value)}
+                                        onFocus={this.handleInputFocus}
+                                        step="0.1"
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Labor Bill/Ctn</label>
+                                    <input
+                                        type="number"
+                                        className="form-input"
+                                        value={costs.labourBillPerCtn}
+                                        onChange={(e) => this.handleCostingChange('labourBillPerCtn', e.target.value)}
+                                        onFocus={this.handleInputFocus}
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Tax Type</label>
+                                    <select
+                                        className="form-select"
+                                        value={costs.taxType}
+                                        onChange={(e) => this.handleCostingChange('taxType', e.target.value)}
+                                    >
+                                        <option value="per_item">Per Item</option>
+                                        <option value="per_kg">Per KG</option>
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Tax Value {costs.taxType === 'per_kg' ? '(৳/kg)' : '(৳/pc)'}</label>
+                                    <input
+                                        type="number"
+                                        className="form-input"
+                                        value={costs.taxValue}
+                                        onChange={(e) => this.handleCostingChange('taxValue', e.target.value)}
+                                        onFocus={this.handleInputFocus}
+                                    />
                                 </div>
                             </div>
                         </div>
@@ -1170,14 +1410,201 @@ class SupplierOrders extends React.Component {
         );
     };
 
+    renderCargoModal = () => {
+        const { cargos, selectedCargoId, isSubmitting, investors, selectedInvestorId, investedAmount, profitSharePercentage, shipmentToComplete, imports } = this.state;
+
+        let totalCost = 0;
+        if (shipmentToComplete && imports) {
+            const imp = imports.find(i => i._id === shipmentToComplete.importId);
+            if (imp && imp.shipments) {
+                const shipment = imp.shipments.find(s =>
+                    (s._id || s.shipmentId)?.toString() === shipmentToComplete.shipmentId
+                );
+                if (shipment && shipment.items) {
+                    const totals = this.calculateShipmentTotals(shipment.items);
+                    totalCost = totals.totalBDT;
+                }
+            }
+        }
+
+        return (
+            <div className="modal-overlay">
+                <div className="modal-content" onClick={e => e.stopPropagation()}>
+                    <div className="modal-header">
+                        <h3 className="modal-title">Shipment Logistics & Investment</h3>
+                        <button className="modal-close" onClick={this.closeModals}>&times;</button>
+                    </div>
+                    <div className="modal-body">
+                        {/* Cargo Section */}
+                        <div style={{ marginBottom: '25px', padding: '15px', background: 'rgba(6, 182, 212, 0.03)', borderRadius: '12px', border: '1px solid rgba(6, 182, 212, 0.1)' }}>
+                            <label className="form-label" style={{ color: '#06b6d4', fontWeight: '700', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <i className="fa fa-truck"></i> CARGO LOGISTICS
+                            </label>
+                            <div className="d-flex" style={{ gap: '10px' }}>
+                                <select
+                                    className="form-select"
+                                    value={selectedCargoId}
+                                    onChange={(e) => this.setState({ selectedCargoId: e.target.value })}
+                                    style={{ flex: 1 }}
+                                >
+                                    <option value="">None / Hand Carry</option>
+                                    {cargos.map(cargo => (
+                                        <option key={cargo._id} value={cargo._id}>{cargo.name}</option>
+                                    ))}
+                                </select>
+                                <button
+                                    className="btn-icon btn-icon--cyan"
+                                    onClick={() => this.setState({ isAddCargoModalOpen: true })}
+                                    style={{ width: '40px', height: '40px', borderRadius: '8px' }}
+                                    title="Add New Cargo"
+                                >
+                                    <i className="fa fa-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Investment Section */}
+                        <div style={{ padding: '15px', background: 'rgba(168, 85, 247, 0.03)', borderRadius: '12px', border: '1px solid rgba(168, 85, 247, 0.1)' }}>
+                            <label className="form-label" style={{ color: '#a855f7', fontWeight: '700', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <i className="fa fa-briefcase"></i> INVESTMENT (OPTIONAL)
+                            </label>
+
+                            <div className="form-group">
+                                <label className="form-label">Investor</label>
+                                <select
+                                    className="form-select"
+                                    value={selectedInvestorId}
+                                    onChange={(e) => {
+                                        const investor = investors.find(i => i._id === e.target.value);
+                                        this.setState({
+                                            selectedInvestorId: e.target.value,
+                                            investedAmount: totalCost, // Default to full amount
+                                            profitSharePercentage: investor ? investor.defaultProfitShare : 50
+                                        });
+                                    }}
+                                >
+                                    <option value="">No External Investment</option>
+                                    {investors.map(investor => (
+                                        <option key={investor._id} value={investor._id}>{investor.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {selectedInvestorId && (
+                                <div className="form-row form-row--2" style={{ marginTop: '15px' }}>
+                                    <div className="form-group">
+                                        <label className="form-label">Capital (৳)</label>
+                                        <input
+                                            type="number"
+                                            className="form-input"
+                                            value={investedAmount}
+                                            onChange={(e) => this.setState({ investedAmount: Number(e.target.value) })}
+                                        />
+                                        <div style={{ fontSize: '10px', color: '#64748b', marginTop: '4px' }}>
+                                            Total Cost: ৳{totalCost.toLocaleString()}
+                                        </div>
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Profit Share %</label>
+                                        <input
+                                            type="number"
+                                            className="form-input"
+                                            value={profitSharePercentage}
+                                            onChange={(e) => this.setState({ profitSharePercentage: Number(e.target.value) })}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    <div className="modal-footer">
+                        <button className="btn-neon" style={{ background: 'rgba(100, 116, 139, 0.2)', color: '#64748b', border: '1px solid rgba(100, 116, 139, 0.3)' }} onClick={this.closeModals}>
+                            Cancel
+                        </button>
+                        <button className="btn-neon btn-neon--green" onClick={this.handleConfirmCompleteShipment} disabled={isSubmitting}>
+                            {isSubmitting ? <i className="fa fa-spinner fa-spin"></i> : <i className="fa fa-check"></i>}
+                            {' '}
+                            {isSubmitting ? 'Confirm & Close Shipment' : 'Confirm & Close Shipment'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    renderAddCargoModal = () => {
+        const { newCargo, isSubmitting } = this.state;
+
+        return (
+            <div className="modal-overlay" style={{ zIndex: 1100 }}>
+                <div className="modal-content modal-content--sm" onClick={e => e.stopPropagation()}>
+                    <div className="modal-header">
+                        <h3 className="modal-title">Add New Cargo</h3>
+                        <button className="modal-close" onClick={() => this.setState({ isAddCargoModalOpen: false })}>&times;</button>
+                    </div>
+                    <div className="modal-body">
+                        <div className="form-group">
+                            <label className="form-label">Cargo Name *</label>
+                            <input
+                                type="text"
+                                className="form-input"
+                                value={newCargo.name}
+                                onChange={(e) => this.handleCargoInputChange('name', e.target.value)}
+                                placeholder="Enter cargo name"
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label">Contact Number</label>
+                            <input
+                                type="text"
+                                className="form-input"
+                                value={newCargo.contactNumber}
+                                onChange={(e) => this.handleCargoInputChange('contactNumber', e.target.value)}
+                                placeholder="Phone number"
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label">Address</label>
+                            <input
+                                type="text"
+                                className="form-input"
+                                value={newCargo.address}
+                                onChange={(e) => this.handleCargoInputChange('address', e.target.value)}
+                                placeholder="Location"
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label className="form-label">Notes</label>
+                            <textarea
+                                className="form-input"
+                                value={newCargo.notes}
+                                onChange={(e) => this.handleCargoInputChange('notes', e.target.value)}
+                                placeholder="Additional info"
+                                rows="2"
+                            />
+                        </div>
+                    </div>
+                    <div className="modal-footer">
+                        <button className="btn-neon" style={{ background: 'rgba(100, 116, 139, 0.2)', color: '#64748b', border: '1px solid rgba(100, 116, 139, 0.3)' }} onClick={() => this.setState({ isAddCargoModalOpen: false })}>
+                            Cancel
+                        </button>
+                        <button className="btn-neon btn-neon--cyan" onClick={this.handleCreateCargo} disabled={isSubmitting}>
+                            {isSubmitting ? <i className="fa fa-spinner fa-spin"></i> : <i className="fa fa-save"></i>}
+                            {' '}
+                            {isSubmitting ? 'Saving...' : 'Save Cargo'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     render() {
-        const { supplier, isLoading, activeTab, imports, costs } = this.state;
+        const { supplier, isLoading, activeTab } = this.state;
 
         const pendingShipments = this.getShipmentsByStatus('Pending');
         const shippedShipments = this.getShipmentsByStatus('Shipped');
         const receivedShipments = this.getShipmentsByStatus('Received');
-
-        const firstImport = imports.length > 0 ? imports[0] : null;
 
         return (
             <div className="supplier-orders">
@@ -1196,41 +1623,32 @@ class SupplierOrders extends React.Component {
                             )}
                         </div>
                     </div>
-                    {firstImport && (
+                    <div className="supplier-orders__tabs supplier-orders__tabs--header">
                         <button
-                            className="btn-neon btn-neon--purple"
-                            onClick={() => this.handleCreatePendingShipment(firstImport._id)}
+                            className={`supplier-orders__tab supplier-orders__tab--current ${activeTab === 'pending' ? 'active' : ''}`}
+                            onClick={() => this.setState({ activeTab: 'pending' })}
                         >
-                            <i className="fa fa-plus"></i> New Shipment
+                            <i className="fa fa-clock-o"></i>
+                            Current Orders
+                            <span className="supplier-orders__tab-count">{pendingShipments.length}</span>
                         </button>
-                    )}
-                </div>
-
-                <div className="supplier-orders__tabs">
-                    <button
-                        className={`supplier-orders__tab supplier-orders__tab--current ${activeTab === 'pending' ? 'active' : ''}`}
-                        onClick={() => this.setState({ activeTab: 'pending' })}
-                    >
-                        <i className="fa fa-clock-o"></i>
-                        Current Orders
-                        <span className="supplier-orders__tab-count">{pendingShipments.length}</span>
-                    </button>
-                    <button
-                        className={`supplier-orders__tab supplier-orders__tab--shipped ${activeTab === 'shipped' ? 'active' : ''}`}
-                        onClick={() => this.setState({ activeTab: 'shipped' })}
-                    >
-                        <i className="fa fa-ship"></i>
-                        On The Way
-                        <span className="supplier-orders__tab-count">{shippedShipments.length}</span>
-                    </button>
-                    <button
-                        className={`supplier-orders__tab supplier-orders__tab--received ${activeTab === 'received' ? 'active' : ''}`}
-                        onClick={() => this.setState({ activeTab: 'received' })}
-                    >
-                        <i className="fa fa-check-circle"></i>
-                        Previous Orders
-                        <span className="supplier-orders__tab-count">{receivedShipments.length}</span>
-                    </button>
+                        <button
+                            className={`supplier-orders__tab supplier-orders__tab--shipped ${activeTab === 'shipped' ? 'active' : ''}`}
+                            onClick={() => this.setState({ activeTab: 'shipped' })}
+                        >
+                            <i className="fa fa-ship"></i>
+                            On The Way
+                            <span className="supplier-orders__tab-count">{shippedShipments.length}</span>
+                        </button>
+                        <button
+                            className={`supplier-orders__tab supplier-orders__tab--received ${activeTab === 'received' ? 'active' : ''}`}
+                            onClick={() => this.setState({ activeTab: 'received' })}
+                        >
+                            <i className="fa fa-check-circle"></i>
+                            Previous Orders
+                            <span className="supplier-orders__tab-count">{receivedShipments.length}</span>
+                        </button>
+                    </div>
                 </div>
 
                 <div className="supplier-orders__content">
@@ -1293,6 +1711,8 @@ class SupplierOrders extends React.Component {
 
                 {this.renderAddItemModal()}
                 {this.renderSelectShipmentModal()}
+                {this.state.isCargoModalOpen && this.renderCargoModal()}
+                {this.state.isAddCargoModalOpen && this.renderAddCargoModal()}
             </div>
         );
     }

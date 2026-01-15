@@ -62,6 +62,7 @@ const ImportSchema = new Schema({
         shipmentId: { type: String }, // Unique shipment identifier e.g., "SHP-20231228-001"
         shipmentDate: Date,
         receivedDate: Date,
+        cargo: { type: Schema.Types.ObjectId, ref: 'Cargo' }, // Reference to cargo company
         status: {
             type: String,
             enum: ['Pending', 'Shipped', 'Received'],

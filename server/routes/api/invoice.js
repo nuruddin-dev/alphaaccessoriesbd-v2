@@ -8,6 +8,9 @@ const role = require('../../middleware/role');
 const { ROLES } = require('../../constants');
 const Account = require('../../models/account');
 const Transaction = require('../../models/transaction');
+const InvestorStock = require('../../models/investorStock');
+const InvestorProfit = require('../../models/investorProfit');
+const Investment = require('../../models/investment');
 
 // @route GET api/invoice
 // @desc Get all invoices
@@ -254,6 +257,9 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
     // Update product stock
     await updateProductStock(enrichedItems, 'add');
 
+    // Update investor profit
+    await updateInvestorProfit(savedInvoice, 'add');
+
     // Handle Account Payments (New System)
     if (payments && payments.length > 0) {
       for (const p of payments) {
@@ -441,6 +447,10 @@ router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
 
       // Apply stock changes for the updated invoice state
       await updateProductStock(enrichedItems, 'add');
+
+      // Update investor profit - Revert old and apply new
+      await updateInvestorProfit(existingInvoice, 'remove');
+      await updateInvestorProfit(updatedInvoice, 'add');
     }
 
     // Calculate totalFee from payments if present in update, otherwise keep existing
@@ -593,6 +603,9 @@ router.delete('/delete-by-number', auth, role.check(ROLES.Admin), async (req, re
 
     // Revert stock changes
     await updateProductStock(invoice.items, 'remove');
+
+    // Revert investor profit
+    await updateInvestorProfit(invoice, 'remove');
     console.log('Stock reverted.');
 
     // Revert Payment Transactions
@@ -662,6 +675,9 @@ router.delete('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
 
     // Revert stock changes
     await updateProductStock(invoice.items, 'remove');
+
+    // Revert investor profit
+    await updateInvestorProfit(invoice, 'remove');
 
     // Revert Payment Transactions
     const transactions = await Transaction.find({ referenceId: invoiceId });
@@ -752,6 +768,84 @@ router.get('/invoice/:number', async (req, res) => {
 
 
 module.exports = router;
+
+const updateInvestorProfit = async (invoice, operation) => {
+  try {
+    if (operation === 'remove') {
+      // Find all profits recorded for this invoice
+      const profits = await InvestorProfit.find({ invoice: invoice._id });
+
+      for (const profit of profits) {
+        // Revert stock quantity
+        await InvestorStock.updateOne(
+          { investment: profit.investment, product: profit.product },
+          { $inc: { remainingQuantity: profit.quantity } }
+        );
+      }
+
+      // Delete the profit records
+      await InvestorProfit.deleteMany({ invoice: invoice._id });
+      return;
+    }
+
+    // operation === 'add'
+    for (const item of invoice.items) {
+      if (!item.product) continue;
+
+      let quantityToTrack = item.quantity;
+      if (quantityToTrack <= 0) continue; // Skip returns for now or handle separately
+
+      // Find matching investor stocks (FIFO)
+      const investorStocks = await InvestorStock.find({
+        product: item.product,
+        remainingQuantity: { $gt: 0 }
+      }).sort({ created: 1 });
+
+      for (const stock of investorStocks) {
+        if (quantityToTrack <= 0) break;
+
+        const availableQty = stock.remainingQuantity;
+        const deductQty = Math.min(quantityToTrack, availableQty);
+
+        // Fetch Investment to get ratios
+        const investment = await Investment.findById(stock.investment);
+        if (!investment) continue;
+
+        // Calculate Profit
+        // Profit = (SalePrice - BuyingPrice) * Quantity
+        // We use the item's buying price (actual landing cost) or fallback to stock's recorded price
+        const buyingPrice = item.buyingPrice || stock.buyingPrice || 0;
+        const totalProfit = (item.unitPrice - buyingPrice) * deductQty;
+
+        // Investor Share = totalProfit * contributionRatio * profitSharePercentage%
+        const investorShare = totalProfit * investment.contributionRatio * (investment.profitSharePercentage / 100);
+
+        // Record Profit
+        await InvestorProfit.create({
+          investor: stock.investor,
+          investment: stock.investment,
+          invoice: invoice._id,
+          product: item.product,
+          quantity: deductQty,
+          totalProfit,
+          investorShare,
+          salePrice: item.unitPrice,
+          buyingPrice,
+          contributionRatio: investment.contributionRatio,
+          profitSharePercentage: investment.profitSharePercentage
+        });
+
+        // Update Remaining Quantity
+        stock.remainingQuantity -= deductQty;
+        await stock.save();
+
+        quantityToTrack -= deductQty;
+      }
+    }
+  } catch (error) {
+    console.error('Error updating investor profit:', error);
+  }
+};
 
 const updateProductStock = async (items, operation) => {
   if (!items || items.length === 0) return;

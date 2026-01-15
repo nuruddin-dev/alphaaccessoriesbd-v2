@@ -3,6 +3,8 @@ const Mongoose = require('mongoose');
 const router = express.Router();
 const ImportOrder = require('../../models/import');
 const Product = require('../../models/product');
+const Investment = require('../../models/investment');
+const InvestorStock = require('../../models/investorStock');
 const auth = require('../../middleware/auth');
 const role = require('../../middleware/role');
 const { ROLES } = require('../../constants');
@@ -60,6 +62,7 @@ router.get('/by-supplier/:supplierId', auth, async (req, res) => {
         const imports = await ImportOrder.find({ supplier: req.params.supplierId })
             .populate('supplier')
             .populate('items.product', 'name shortName sku')
+            .populate('shipments.cargo')
             .sort('-created');
         res.status(200).json({ imports });
     } catch (error) {
@@ -74,7 +77,8 @@ router.get('/:id', auth, async (req, res) => {
     try {
         const importOrder = await ImportOrder.findById(req.params.id)
             .populate('supplier')
-            .populate('items.product', 'name shortName sku');
+            .populate('items.product', 'name shortName sku')
+            .populate('shipments.cargo');
         res.status(200).json({ importOrder });
     } catch (error) {
         res.status(400).json({ error: 'Your request could not be processed. Please try again.' });
@@ -395,6 +399,7 @@ router.post('/:id/shipment/:shipmentId/item/:itemId/move-to-shipped', auth, role
 // @access  Private
 router.post('/:id/shipment/:shipmentId/complete', auth, role.check(ROLES.Admin), async (req, res) => {
     try {
+        const { cargo } = req.body; // Optional cargo ID
         const order = await ImportOrder.findById(req.params.id);
         if (!order) return res.status(404).json({ error: 'Order not found.' });
 
@@ -412,6 +417,10 @@ router.post('/:id/shipment/:shipmentId/complete', auth, role.check(ROLES.Admin),
         }
 
         shipment.isCompleted = true;
+        shipment.shipmentDate = new Date(); // Update shipped date to current date
+        if (cargo) {
+            shipment.cargo = cargo; // Save cargo reference
+        }
         await order.save();
 
         res.status(200).json({
@@ -593,56 +602,44 @@ router.post('/:id/receive', auth, role.check(ROLES.Admin), async (req, res) => {
             return res.status(400).json({ error: 'Shipment already received.' });
         }
 
-        // Process Stock Update
+        // Process Stock Update - use the priceBDT directly from shipment items
         for (const item of shipment.items) {
-            // Find Matching Item in Order to get pricing details
-            const orderItem = order.items.find(i =>
-                (item.product && i.product && i.product.toString() === item.product.toString()) ||
-                i.modelName === item.modelName
-            );
+            // Find Product in Inventory
+            let product;
+            if (item.product) {
+                product = await Product.findById(item.product);
+            }
 
-            if (orderItem) {
-                // Calculate Buying Price
-                let taxPerItem = 0;
-                if (order.costs.taxType === 'total') {
-                    const totalQty = order.items.reduce((sum, i) => sum + (i.totalQuantity || 0), 0);
-                    if (totalQty > 0) {
-                        taxPerItem = (order.costs.taxValue || 0) / totalQty;
-                    }
-                }
+            if (!product) {
+                product = await Product.findOne({
+                    $or: [
+                        { name: item.modelName },
+                        { shortName: item.modelName },
+                        { shortName: item.shortName },
+                        { sku: item.modelName }
+                    ]
+                });
+            }
 
-                const calcCosts = { ...order.costs.toObject() };
-                if (order.costs.taxType === 'total') {
-                    calcCosts.taxType = 'per_item';
-                    calcCosts.taxValue = taxPerItem;
-                }
+            if (product) {
+                const currentQty = product.quantity || 0;
+                const currentBuyingPrice = product.buyingPrice || 0;
+                const newQty = item.quantity || 0;
+                const newBuyingPrice = item.priceBDT || 0;
 
-                const newBuyingPrice = calculateItemBuyingPrice(orderItem, calcCosts);
+                // Calculate average buying price
+                const totalValue = (currentQty * currentBuyingPrice) + (newQty * newBuyingPrice);
+                const totalQty = currentQty + newQty;
+                const avgBuyingPrice = totalQty > 0 ? Math.round(totalValue / totalQty) : newBuyingPrice;
 
-                // Find Product in Inventory
-                let product;
-                if (item.product) {
-                    product = await Product.findById(item.product);
-                }
+                // Update product
+                product.quantity = totalQty;
+                product.buyingPrice = avgBuyingPrice;
+                await product.save();
 
-                if (!product) {
-                    product = await Product.findOne({
-                        $or: [
-                            { name: item.modelName },
-                            { shortName: item.modelName },
-                            { shortName: item.shortName },
-                            { sku: item.modelName }
-                        ]
-                    });
-                }
-
-                if (product) {
-                    product.quantity = (product.quantity || 0) + item.quantity;
-                    product.buyingPrice = Math.round(newBuyingPrice);
-                    await product.save();
-                } else {
-                    console.log(`Product ${item.modelName} (ID: ${item.product}) not found during import receive.`);
-                }
+                console.log(`Updated product ${product.shortName || product.name}: qty ${currentQty} -> ${totalQty}, buyingPrice ${currentBuyingPrice} -> ${avgBuyingPrice}`);
+            } else {
+                console.log(`Product ${item.modelName} (ID: ${item.product}) not found during import receive.`);
             }
         }
 
@@ -650,9 +647,141 @@ router.post('/:id/receive', auth, role.check(ROLES.Admin), async (req, res) => {
         shipment.receivedDate = receivedDate || new Date();
         await order.save();
 
+        // Check for Investment and Record Investor Stock
+        const investment = await Investment.findOne({
+            importOrder: req.params.id,
+            $or: [
+                { shipmentId: shipment.shipmentId },
+                { shipmentId: shipment._id.toString() }
+            ],
+            status: 'Active'
+        });
+
+        if (investment) {
+            console.log(`Matching investment found: ${shipment.shipmentId}. Recording investor stock...`);
+            for (const item of shipment.items) {
+                if (item.product) {
+                    await InvestorStock.create({
+                        investor: investment.investor,
+                        investment: investment._id,
+                        product: item.product,
+                        shipmentId: shipment.shipmentId,
+                        totalQuantity: item.quantity,
+                        remainingQuantity: item.quantity,
+                        buyingPrice: item.priceBDT || 0
+                    });
+                }
+            }
+            console.log(`Investment found for shipment ${shipment.shipmentId}. Investor stock recorded.`);
+        }
+
         res.status(200).json({
             success: true,
             message: 'Shipment received and stock updated!',
+            importOrder: order
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(400).json({ error: 'Your request could not be processed. Please try again.' });
+    }
+});
+
+// @route   POST api/import/:id/shipment/:shipmentId/undo-receive
+// @desc    Undo receive and revert stock/price changes
+// @access  Private
+router.post('/:id/shipment/:shipmentId/undo-receive', auth, role.check(ROLES.Admin), async (req, res) => {
+    try {
+        const order = await ImportOrder.findById(req.params.id);
+
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found.' });
+        }
+
+        // Find shipment by _id or shipmentId string
+        let shipment;
+        if (Mongoose.Types.ObjectId.isValid(req.params.shipmentId)) {
+            shipment = order.shipments.id(req.params.shipmentId);
+        }
+        if (!shipment) {
+            shipment = order.shipments.find(s => s.shipmentId === req.params.shipmentId);
+        }
+
+        if (!shipment) {
+            return res.status(404).json({ error: 'Shipment not found.' });
+        }
+
+        if (shipment.status !== 'Received') {
+            return res.status(400).json({ error: 'Shipment is not in Received status.' });
+        }
+
+        // Process Stock Reversal
+        for (const item of shipment.items) {
+            // Find Product in Inventory
+            let product;
+            if (item.product) {
+                product = await Product.findById(item.product);
+            }
+
+            if (!product) {
+                product = await Product.findOne({
+                    $or: [
+                        { name: item.modelName },
+                        { shortName: item.modelName },
+                        { shortName: item.shortName },
+                        { sku: item.modelName }
+                    ]
+                });
+            }
+
+            if (product) {
+                const currentQty = product.quantity || 0;
+                const currentBuyingPrice = product.buyingPrice || 0;
+                const revertQty = item.quantity || 0;
+                const revertPrice = item.priceBDT || 0;
+
+                // Calculate reverse of average buying price
+                // If qty was 0 before receiving, we just set it back to 0
+                // Otherwise, we reverse the average calculation:
+                // new avg = (old avg * old qty + new price * new qty) / (old qty + new qty)
+                // Reversing: old avg = (new avg * new qty - add price * add qty) / (new qty - add qty)
+                const newQty = Math.max(0, currentQty - revertQty);
+
+                let newBuyingPrice = currentBuyingPrice;
+                if (newQty > 0 && currentQty > 0) {
+                    const totalValue = currentBuyingPrice * currentQty;
+                    const revertValue = revertPrice * revertQty;
+                    const remainingValue = totalValue - revertValue;
+                    newBuyingPrice = Math.max(0, Math.round(remainingValue / newQty));
+                } else if (newQty === 0) {
+                    newBuyingPrice = 0;
+                }
+
+                // Update product
+                product.quantity = newQty;
+                product.buyingPrice = newBuyingPrice;
+                await product.save();
+
+                console.log(`Reverted product ${product.shortName || product.name}: qty ${currentQty} -> ${newQty}, buyingPrice ${currentBuyingPrice} -> ${newBuyingPrice}`);
+            } else {
+                console.log(`Product ${item.modelName} (ID: ${item.product}) not found during undo receive.`);
+            }
+        }
+
+        // Change status back to Shipped
+        shipment.status = 'Shipped';
+        shipment.receivedDate = undefined;
+        await order.save();
+
+        // Remove Investor Stock if associated
+        await InvestorStock.deleteMany({
+            importOrder: req.params.id,
+            shipmentId: shipment.shipmentId
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Shipment reverted to On The Way. Stock and prices have been undone!',
             importOrder: order
         });
 
@@ -693,6 +822,44 @@ router.put('/:id/shipment/:shipmentId/received-date', auth, role.check(ROLES.Adm
         res.status(200).json({
             success: true,
             message: 'Received date updated!',
+            importOrder: order
+        });
+    } catch (error) {
+        res.status(400).json({ error: 'Your request could not be processed. Please try again.' });
+    }
+});
+
+// @route   PUT api/import/:id/shipment/:shipmentId/shipped-date
+// @desc    Update shipped date of a shipment
+// @access  Private
+router.put('/:id/shipment/:shipmentId/shipped-date', auth, role.check(ROLES.Admin), async (req, res) => {
+    try {
+        const { shippedDate } = req.body;
+        const order = await ImportOrder.findById(req.params.id);
+
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found.' });
+        }
+
+        // Find shipment by _id or shipmentId string
+        let shipment;
+        if (Mongoose.Types.ObjectId.isValid(req.params.shipmentId)) {
+            shipment = order.shipments.id(req.params.shipmentId);
+        }
+        if (!shipment) {
+            shipment = order.shipments.find(s => s.shipmentId === req.params.shipmentId);
+        }
+
+        if (!shipment) {
+            return res.status(404).json({ error: 'Shipment not found.' });
+        }
+
+        shipment.shipmentDate = shippedDate;
+        await order.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Shipped date updated!',
             importOrder: order
         });
     } catch (error) {

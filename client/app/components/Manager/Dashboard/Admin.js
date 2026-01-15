@@ -33,6 +33,7 @@ import AccountsManager from '../../../containers/AccountsManager';
 import Import from '../../../containers/Import';
 import Supplier from '../../../containers/Supplier';
 import Challan from '../../../containers/Challan';
+import Investor from '../../../containers/Investor';
 
 const Admin = props => {
   const location = useLocation();
@@ -100,6 +101,8 @@ const Admin = props => {
               <Route path='/dashboard/import' component={Import} />
               <Route path='/dashboard/supplier' component={Supplier} />
               <Route path='/dashboard/lendings' component={Challan} />
+              <Route path='/dashboard/investors' component={Investor} />
+              <Route path='/dashboard/investor' component={Investor} />
               <Route path='*' component={Page404} />
             </Switch>
           </div>

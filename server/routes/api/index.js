@@ -102,5 +102,17 @@ router.use('/challan', challanRoutes);
 const myshopManagementRoutes = require('./myshop');
 router.use('/myshop-mgmt', myshopManagementRoutes);
 
+// Cargo routes
+const cargoRoutes = require('./cargo');
+router.use('/cargo', cargoRoutes);
+
+// Investor and Investment routes
+const investorRoutes = require('./investor');
+const investmentRoutes = require('./investment');
+const investmentStatsRoutes = require('./investmentStats');
+router.use('/investor', investorRoutes);
+router.use('/investment', investmentRoutes);
+router.use('/investment-stats', investmentStatsRoutes);
+
 
 module.exports = router;
