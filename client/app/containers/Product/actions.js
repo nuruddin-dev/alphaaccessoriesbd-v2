@@ -429,7 +429,7 @@ export const addProduct = () => {
       });
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };
@@ -459,7 +459,7 @@ export const updateProductDetails = (id, productData) => {
       });
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };
@@ -600,7 +600,7 @@ export const updateProduct = () => {
       });
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };
@@ -626,7 +626,7 @@ export const activateProduct = (id, value) => {
       });
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };
@@ -647,7 +647,7 @@ export const deleteProduct = id => {
       const response = await axios.delete(`${API_URL}/product/delete/${id}`);
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };

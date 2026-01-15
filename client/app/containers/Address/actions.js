@@ -121,7 +121,7 @@ export const addAddress = () => {
 
       const response = await axios.post(`${API_URL}/address/add`, address);
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };
@@ -175,7 +175,7 @@ export const updateDeliveryAddress = profile => {
       });
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };
@@ -225,7 +225,7 @@ export const updateAddress = () => {
       );
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };
@@ -249,7 +249,7 @@ export const deleteAddress = id => {
       const response = await axios.delete(`${API_URL}/address/delete/${id}`);
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };

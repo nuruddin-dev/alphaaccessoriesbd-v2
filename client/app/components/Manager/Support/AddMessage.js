@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
+import { useDispatch } from 'react-redux';
+import { warning } from 'react-notification-system-redux';
 
 import Input from '../../Common/Input';
 import Button from '../../Common/Button';
 
 const AddMessage = props => {
+  const dispatch = useDispatch();
   const { onSubmit } = props;
   const [message, setMessage] = useState('');
 
   const handleOnSubmit = e => {
     e.preventDefault();
     if (!message.trim()) {
-      return alert('Please type message.');
+      return dispatch(warning({ title: 'Please type message.', position: 'tr', autoDismiss: 3 }));
     }
     onSubmit(message);
     setMessage('');

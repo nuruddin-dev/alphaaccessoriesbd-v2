@@ -4,7 +4,8 @@ const { ORDER_STATUS } = require('../constants');
 const orderNowSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: true
+    required: true,
+    set: v => v ? v.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : v
   },
   phoneNumber: {
     type: String,

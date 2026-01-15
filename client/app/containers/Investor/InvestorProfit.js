@@ -1,5 +1,8 @@
 import React from 'react';
+import { connect } from 'react-redux';
 import axios from 'axios';
+import { success, error, warning } from 'react-notification-system-redux';
+import actions from '../../actions';
 import { API_URL } from '../../constants';
 import './Investor.css';
 
@@ -79,7 +82,7 @@ class InvestorProfit extends React.Component {
         const maxWithdrawable = profitStats.summary?.totalWithdrawable || 0;
 
         if (parseFloat(payoutAmount) > maxWithdrawable) {
-            return alert(`Error: Withdrawal amount cannot exceed total withdrawable money (৳${maxWithdrawable.toLocaleString()})`);
+            return this.props.warning({ title: `Error: Withdrawal amount cannot exceed total withdrawable money (৳${maxWithdrawable.toLocaleString()})`, position: 'tr', autoDismiss: 5 });
         }
 
         try {
@@ -87,11 +90,12 @@ class InvestorProfit extends React.Component {
                 amount: parseFloat(payoutAmount),
                 note: payoutNote
             });
+            this.props.success({ title: 'Withdrawal recorded successfully!', position: 'tr', autoDismiss: 3 });
             this.setState({ isPayoutModalOpen: false });
             this.fetchData(); // Refresh stats
         } catch (error) {
-            console.error('Error recording payout:', error);
-            alert('Error recording payout');
+            console.error('Error recording payout:', err);
+            this.props.error({ title: 'Error recording payout', position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -117,18 +121,43 @@ class InvestorProfit extends React.Component {
 
         return (
             <div className="investor-container">
-                <div className="investor-header">
-                    <div style={{ display: 'flex', gap: '15px' }}>
-                        <button className="btn-neon" onClick={() => this.props.history.push('/dashboard/investors')}>
-                            <i className="fa fa-arrow-left"></i> Back
+                <div className="d-flex justify-content-between align-items-center" style={{ background: '#fff', padding: '12px 20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '15px' }}>
+                    <div className="d-flex align-items-center">
+                        <button
+                            className="btn-neon btn-neon--cyan mr-3"
+                            style={{ width: '36px', height: '36px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            onClick={() => this.props.history.push('/dashboard/investors')}
+                        >
+                            <i className="fa fa-arrow-left"></i>
                         </button>
-                        <button className="btn-neon btn-neon--cyan" onClick={this.openPayoutModal}>
-                            <i className="fa fa-money"></i> Withdraw Money
-                        </button>
+                        <div style={{
+                            width: '4px',
+                            height: '24px',
+                            background: '#06b6d4',
+                            borderRadius: '2px',
+                            marginRight: '12px'
+                        }}></div>
+                        <div>
+                            <h2 className="mb-0" style={{
+                                fontWeight: '700',
+                                color: '#1e293b',
+                                fontSize: '20px',
+                                letterSpacing: '-0.5px'
+                            }}>
+                                {investor.name}
+                            </h2>
+                            <small className="text-muted font-weight-bold" style={{ fontSize: '12px', marginTop: '-4px', display: 'block' }}>
+                                {investor.phoneNumber || investor.email}
+                            </small>
+                        </div>
                     </div>
-                    <div className="investor-header__title" style={{ textAlign: 'right' }}>
-                        <h1>{investor.name}</h1>
-                        <p>{investor.email || investor.phoneNumber}</p>
+                    <div>
+                        <button
+                            className="btn-neon btn-neon--cyan"
+                            onClick={this.openPayoutModal}
+                        >
+                            <i className="fa fa-money mr-2"></i> Withdraw Money
+                        </button>
                     </div>
                 </div>
 
@@ -349,4 +378,16 @@ class InvestorProfit extends React.Component {
     }
 }
 
-export default InvestorProfit;
+const mapStateToProps = state => ({
+    user: state.account.user
+});
+
+const mapDispatchToProps = dispatch => ({
+    ...actions(dispatch),
+    success: opts => dispatch(success(opts)),
+    error: opts => dispatch(error(opts)),
+    warning: opts => dispatch(warning(opts)),
+    dispatch
+});
+
+export default connect(mapStateToProps, mapDispatchToProps)(InvestorProfit);

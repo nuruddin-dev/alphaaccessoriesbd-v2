@@ -13,6 +13,12 @@ import Button from '../../Common/Button';
 
 const AccountMenu = props => {
   const { user, isMenuOpen, links, toggleMenu, orderNowsCount, isCollapsed, toggleCollapse, isMobile = true } = props;
+  const [topBarVisible, setTopBarVisible] = React.useState(false);
+
+  const handleToggleTopBar = () => {
+    window.dispatchEvent(new Event('toggle-dashboard-nav'));
+    setTopBarVisible(!topBarVisible);
+  };
 
   const getAllowedProvider = link => {
     if (!link.provider) return true;
@@ -74,7 +80,18 @@ const AccountMenu = props => {
         {isCollapsed ? (
           <span className='font-weight-bold text-primary' style={{ fontSize: '1.5rem' }}>A</span>
         ) : (
-          <h3 className='panel-title mb-0 text-primary'>Alpha</h3>
+          <div className="d-flex align-items-center justify-content-between w-100">
+            <h3 className='panel-title mb-0 text-primary' style={{ fontSize: '1.1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '170px' }}>
+              {user.role === 'ROLE ADMIN' ? `Admin (${user.firstName})` : 'Alpha'}
+            </h3>
+            <button
+              className="btn btn-sm btn-light text-primary border-0 shadow-none bg-transparent p-0"
+              onClick={handleToggleTopBar}
+              title={topBarVisible ? "Hide Top Menu" : "Show Top Menu"}
+            >
+              <i className={`fa ${topBarVisible ? 'fa-chevron-circle-up' : 'fa-chevron-circle-down'}`} style={{ fontSize: '1.2rem' }}></i>
+            </button>
+          </div>
         )}
       </div>
 

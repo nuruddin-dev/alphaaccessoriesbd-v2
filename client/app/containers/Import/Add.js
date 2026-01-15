@@ -1,5 +1,8 @@
 import React from 'react';
+import { connect } from 'react-redux';
+import { success, error, warning } from 'react-notification-system-redux';
 import axios from 'axios';
+import actions from '../../actions';
 import { Row, Col, Card, CardBody, Button, Form, FormGroup, Label, Input, Table } from 'reactstrap';
 import { API_URL } from '../../constants';
 
@@ -21,7 +24,6 @@ class ImportAdd extends React.Component {
         taxValue: 0,
         labourBillPerCtn: 0,
 
-        // Items
         // Items
         items: [],
         products: [], // Loaded for selection
@@ -51,7 +53,7 @@ class ImportAdd extends React.Component {
             const response = await axios.get(`${API_URL}/supplier`);
             this.setState({ suppliers: response.data.suppliers });
         } catch (error) {
-            console.error(error);
+            console.error(err);
         }
     };
 
@@ -72,7 +74,7 @@ class ImportAdd extends React.Component {
                 shipments: order.shipments || []
             });
         } catch (error) {
-            console.error(error);
+            console.error(err);
         }
     };
 
@@ -144,15 +146,15 @@ class ImportAdd extends React.Component {
         try {
             if (this.state.isEditing) {
                 await axios.put(`${API_URL}/import/${this.props.match.params.id}`, payload);
-                alert('Order Updated!');
+                this.props.success({ title: 'Order Updated!', position: 'tr', autoDismiss: 3 });
             } else {
                 await axios.post(`${API_URL}/import/add`, payload);
-                alert('Order Created!');
+                this.props.success({ title: 'Order Created!', position: 'tr', autoDismiss: 3 });
                 this.props.history.push('/dashboard/import');
             }
         } catch (error) {
-            alert('Error saving order');
-            console.error(error);
+            this.props.error({ title: 'Error saving order', position: 'tr', autoDismiss: 5 });
+            console.error(err);
         }
     };
 
@@ -204,18 +206,18 @@ class ImportAdd extends React.Component {
             quantity: i.quantity
         }));
 
-        if (itemsToShip.length === 0) return alert('Please enter quantity for at least one item.');
+        if (itemsToShip.length === 0) return this.props.warning({ title: 'Please enter quantity for at least one item.', position: 'tr', autoDismiss: 3 });
 
         try {
             await axios.post(`${API_URL}/import/${this.props.match.params.id}/shipment/add`, {
                 shipmentDate: newShipmentDate,
                 items: itemsToShip
             });
-            alert('Shipment Created!');
+            this.props.success({ title: 'Shipment Created!', position: 'tr', autoDismiss: 3 });
             this.toggleShipmentModal();
             this.fetchOrder(this.props.match.params.id); // Refresh
         } catch (error) {
-            alert('Error creating shipment');
+            this.props.error({ title: 'Error creating shipment', position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -223,10 +225,10 @@ class ImportAdd extends React.Component {
         if (!window.confirm('Are you sure you want to receive this shipment? This will update product stock and buying prices.')) return;
         try {
             await axios.post(`${API_URL}/import/${this.props.match.params.id}/receive`, { shipmentId });
-            alert('Shipment Received & Stock Updated!');
+            this.props.success({ title: 'Shipment Received & Stock Updated!', position: 'tr', autoDismiss: 3 });
             this.fetchOrder(this.props.match.params.id);
         } catch (error) {
-            alert('Error receiving shipment: ' + (error.response?.data?.error || error.message));
+            this.props.error({ title: 'Error receiving shipment: ' + (error.response?.data?.error || err.message), position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -234,9 +236,10 @@ class ImportAdd extends React.Component {
         if (!window.confirm('Delete this shipment record?')) return;
         try {
             await axios.delete(`${API_URL}/import/${this.props.match.params.id}/shipment/${shipmentId}`);
+            this.props.success({ title: 'Shipment Deleted!', position: 'tr', autoDismiss: 3 });
             this.fetchOrder(this.props.match.params.id);
         } catch (error) {
-            alert('Error deleting shipment');
+            this.props.error({ title: 'Error deleting shipment', position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -258,7 +261,7 @@ class ImportAdd extends React.Component {
                 }}
             >
                 <option value="">Select Product</option>
-                {productsList.map(p => (
+                {products.map(p => (
                     <option key={p._id} value={p._id}>{p.shortName || p.name} ({p.sku})</option>
                 ))}
             </Input>
@@ -266,9 +269,8 @@ class ImportAdd extends React.Component {
     };
 
     render() {
-        const { suppliers, items, isEditing, products } = this.state;
+        const { suppliers, items, isEditing } = this.state;
         const suppliersList = suppliers || [];
-        const productsList = products || [];
 
         return (
             <div className="import-add">
@@ -334,7 +336,6 @@ class ImportAdd extends React.Component {
                                             <tr key={index}>
                                                 <td>
                                                     {this.renderProductSelect(index, item)}
-                                                    {/* Fallback Display if needed or hidden input for model name consistency */}
                                                 </td>
                                                 <td><Input bsSize="sm" type="number" value={item.quantityPerCtn} onChange={e => this.handleItemChange(index, 'quantityPerCtn', e.target.value)} /></td>
                                                 <td><Input bsSize="sm" type="number" value={item.ctn} onChange={e => this.handleItemChange(index, 'ctn', e.target.value)} /></td>
@@ -508,4 +509,16 @@ class ImportAdd extends React.Component {
     }
 }
 
-export default ImportAdd;
+const mapStateToProps = state => ({
+    user: state.account.user
+});
+
+const mapDispatchToProps = dispatch => ({
+    ...actions(dispatch),
+    success: opts => dispatch(success(opts)),
+    error: opts => dispatch(error(opts)),
+    warning: opts => dispatch(warning(opts)),
+    dispatch
+});
+
+export default connect(mapStateToProps, mapDispatchToProps)(ImportAdd);

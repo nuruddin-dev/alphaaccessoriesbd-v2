@@ -87,7 +87,7 @@ export const updateProfile = () => {
       });
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };

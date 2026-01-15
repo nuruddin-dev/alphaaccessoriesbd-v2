@@ -2,9 +2,15 @@
   "ROLE ADMIN": [
     {
       "to": "",
-      "name": "Account Details",
+      "name": "Dashboard",
       "prefix": "/dashboard",
-      "icon": "fa-user"
+      "icon": "fa-th-large"
+    },
+    {
+      "to": "/sales-overview",
+      "name": "Sales Overview",
+      "prefix": "/dashboard",
+      "icon": "fa-line-chart"
     },
     {
       "to": "/accounts",
@@ -16,19 +22,31 @@
       "to": "/myshop",
       "name": "MyShop",
       "prefix": "/dashboard",
-      "icon": "fa-shopping-cart"
-    },
-    {
-      "to": "/sales-overview",
-      "name": "Sales Overview",
-      "prefix": "/dashboard",
       "icon": "fa-shopping-bag"
     },
     {
+      "to": "/courier",
+      "name": "Courier",
+      "prefix": "/dashboard",
+      "icon": "fa-truck"
+    },
+    {
+      "to": "/product",
+      "name": "Products",
+      "prefix": "/dashboard",
+      "icon": "fa-cubes"
+    },
+    {
       "to": "/import",
-      "name": "Import Mgmt",
+      "name": "Import Management",
       "prefix": "/dashboard",
       "icon": "fa-ship"
+    },
+    {
+      "to": "/lendings",
+      "name": "Landings",
+      "prefix": "/dashboard",
+      "icon": "fa-paper-plane"
     },
     {
       "to": "/investors",
@@ -37,16 +55,10 @@
       "icon": "fa-briefcase"
     },
     {
-      "to": "/supplier",
-      "name": "Suppliers",
+      "to": "/my-account",
+      "name": "Account Details",
       "prefix": "/dashboard",
-      "icon": "fa-handshake-o"
-    },
-    {
-      "to": "/lendings",
-      "name": "Landings",
-      "prefix": "/dashboard",
-      "icon": "fa-truck"
+      "icon": "fa-user"
     },
     {
       "to": "/security",
@@ -62,12 +74,6 @@
       "name": "Address",
       "prefix": "/dashboard",
       "icon": "fa-map-marker"
-    },
-    {
-      "to": "/product",
-      "name": "Products",
-      "prefix": "/dashboard",
-      "icon": "fa-cubes"
     },
     {
       "to": "/category",
@@ -132,6 +138,11 @@
   "ROLE MERCHANT": [
     {
       "to": "",
+      "name": "Dashboard",
+      "prefix": "/dashboard"
+    },
+    {
+      "to": "/my-account",
       "name": "Account Details",
       "prefix": "/dashboard"
     },
@@ -181,6 +192,11 @@
   "ROLE MEMBER": [
     {
       "to": "",
+      "name": "Dashboard",
+      "prefix": "/dashboard"
+    },
+    {
+      "to": "/my-account",
       "name": "Account Details",
       "prefix": "/dashboard"
     },

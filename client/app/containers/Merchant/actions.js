@@ -100,7 +100,7 @@ export const addMerchant = (isBack = false) => {
       const response = await axios.post(`${API_URL}/merchant/add`, merchant);
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };
@@ -270,7 +270,7 @@ export const deleteMerchant = (merchant, search, page) => {
       );
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };

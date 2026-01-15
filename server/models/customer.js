@@ -5,7 +5,11 @@ const { Schema } = Mongoose;
 const CustomerSchema = new Schema({
   name: {
     type: String,
-    required: true
+    required: true,
+    set: (value) => {
+      if (!value) return value;
+      return value.toLowerCase().replace(/(?:^|\s)\S/g, (a) => a.toUpperCase());
+    }
   },
   phoneNumber: {
     type: String,

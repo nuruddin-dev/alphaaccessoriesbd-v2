@@ -20,7 +20,23 @@ router.post('/add', async (req, res) => {
 
     const savedOrder = await newOrder.save();
 
-    res.json(savedOrder); // Send the saved order back to the client
+    // Automatically entry to Steadfast Courier
+    try {
+      const { syncToSteadfast } = require('../../utils/steadfast');
+      await syncToSteadfast({
+        invoice: `WEB-${savedOrder._id.toString().slice(-6)}`,
+        name: savedOrder.name,
+        phoneNumber: savedOrder.phoneNumber,
+        address: savedOrder.address,
+        price: savedOrder.price,
+        note: savedOrder.note,
+        productName: savedOrder.productName
+      });
+    } catch (courierError) {
+      console.error('Failed to auto-sync to Steadfast:', courierError);
+    }
+
+    res.json(savedOrder);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Error creating order' });

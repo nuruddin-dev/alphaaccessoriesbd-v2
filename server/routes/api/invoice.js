@@ -266,16 +266,17 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
         if (p.amount > 0 && p.account) {
           const acc = await Account.findById(p.account);
           if (acc) {
-            acc.balance += Number(p.amount);
+            const totalPaymentAmount = Number(p.amount) + (Number(p.fee) || 0);
+            acc.balance += totalPaymentAmount;
             await acc.save();
 
             const trans = new Transaction({
               account: acc._id,
               type: 'credit',
-              amount: p.amount,
+              amount: totalPaymentAmount,
               reference: `Invoice #${savedInvoice.invoiceNumber}`,
               referenceId: savedInvoice._id,
-              description: `Payment for Invoice #${savedInvoice.invoiceNumber}`,
+              description: `Payment for Invoice #${savedInvoice.invoiceNumber}${p.fee > 0 ? ` (Fee: ${p.fee})` : ''}`,
               date: savedInvoice.created
             });
             await trans.save();
@@ -447,10 +448,6 @@ router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
 
       // Apply stock changes for the updated invoice state
       await updateProductStock(enrichedItems, 'add');
-
-      // Update investor profit - Revert old and apply new
-      await updateInvestorProfit(existingInvoice, 'remove');
-      await updateInvestorProfit(updatedInvoice, 'add');
     }
 
     // Calculate totalFee from payments if present in update, otherwise keep existing
@@ -467,7 +464,7 @@ router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
           payments.forEach(p => {
             const accountId = (p.account?._id || p.account)?.toString();
             if (accountId) {
-              map[accountId] = (map[accountId] || 0) + (Number(p.amount) || 0);
+              map[accountId] = (map[accountId] || 0) + (Number(p.amount) || 0) + (Number(p.fee) || 0);
             }
           });
         }
@@ -514,6 +511,12 @@ router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
     const updatedInvoice = await Invoice.findByIdAndUpdate(invoiceId, update, {
       new: true
     });
+
+    // Update investor profit - Revert old and apply new if items were changed
+    if (update.items) {
+      await updateInvestorProfit(existingInvoice, 'remove');
+      await updateInvestorProfit(updatedInvoice, 'add');
+    }
 
     // If customer has changed, update both customers' purchase histories and recalculate dues
     if (

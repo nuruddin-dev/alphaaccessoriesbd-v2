@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useDispatch } from 'react-redux';
+import { success, error, warning } from 'react-notification-system-redux';
 import { Link } from 'react-router-dom';
 import { API_URL } from '../../constants';
 import { Row, Col, Card, CardBody, CardTitle, Table, Alert, Button, Input, Label, FormGroup } from 'reactstrap';
@@ -7,6 +9,7 @@ import dayjs from 'dayjs';
 import './styles.css';
 
 const SalesOverview = () => {
+    const dispatch = useDispatch();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [data, setData] = useState({
@@ -35,6 +38,10 @@ const SalesOverview = () => {
             case 'today':
                 start = today.startOf('day');
                 end = today.endOf('day');
+                break;
+            case 'yesterday':
+                start = today.subtract(1, 'day').startOf('day');
+                end = today.subtract(1, 'day').endOf('day');
                 break;
             case 'weekly':
                 start = today.startOf('week');
@@ -70,7 +77,7 @@ const SalesOverview = () => {
                 }
             });
             setData(response.data);
-        } catch (err) {
+        } catch (error) {
             console.error('Error fetching insights:', err);
             setError('Failed to fetch insights.');
         } finally {
@@ -115,7 +122,7 @@ const SalesOverview = () => {
             });
 
             if (response.data.success) {
-                alert('Invoice deleted successfully!');
+                dispatch(success({ title: 'Invoice deleted successfully!', position: 'tr', autoDismiss: 3 }));
                 toggleDeleteModal();
                 fetchInsights(); // Refresh data
             }
@@ -130,43 +137,82 @@ const SalesOverview = () => {
     return (
         <div className="sales-overview-dashboard">
             {/* Navigation Section */}
-            <div className="myshop-nav-buttons">
+            {/* Navigation Section */}
+            <div className="d-flex align-items-center mb-4 p-2 bg-white shadow-sm" style={{ borderRadius: '12px', gap: '10px' }}>
                 <Link to="/dashboard/invoice" style={{ textDecoration: 'none' }}>
-                    <Button className="myshop-nav-btn">
-                        <i className="fa fa-file-text-o"></i>
-                        <span>Invoices</span>
-                    </Button>
+                    <div
+                        className="d-flex align-items-center px-4 py-2"
+                        style={{
+                            background: 'transparent',
+                            color: '#475569',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            fontWeight: '500',
+                            fontSize: '14px',
+                            transition: 'all 0.2s',
+                            border: '1px solid transparent'
+                        }}
+                        onMouseOver={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#06b6d4'; }}
+                        onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#475569'; }}
+                    >
+                        <i className="fa fa-file-text-o mr-2"></i> Invoices
+                    </div>
                 </Link>
+
                 <Link to="/dashboard/customer" style={{ textDecoration: 'none' }}>
-                    <Button className="myshop-nav-btn">
-                        <i className="fa fa-address-book-o"></i>
-                        <span>Customers</span>
-                    </Button>
+                    <div
+                        className="d-flex align-items-center px-4 py-2"
+                        style={{
+                            background: 'transparent',
+                            color: '#475569',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            fontWeight: '500',
+                            fontSize: '14px',
+                            transition: 'all 0.2s',
+                            border: '1px solid transparent'
+                        }}
+                        onMouseOver={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#06b6d4'; }}
+                        onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#475569'; }}
+                    >
+                        <i className="fa fa-address-book-o mr-2"></i> Customers
+                    </div>
                 </Link>
-                <Button
-                    className="myshop-nav-btn"
+
+                <div
+                    className="d-flex align-items-center px-4 py-2"
                     onClick={toggleDeleteModal}
                     style={{
                         background: 'rgba(239, 68, 68, 0.1)',
                         color: '#ef4444',
-                        border: '1px solid rgba(239, 68, 68, 0.2)'
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontWeight: '500',
+                        fontSize: '14px',
+                        transition: 'all 0.2s',
+                        border: '1px solid rgba(239, 68, 68, 0.2)',
+                        marginLeft: 'auto'
                     }}
                 >
-                    <i className="fa fa-trash-o"></i>
-                    <span>Delete Invoice</span>
-                </Button>
-                <Button
-                    className="myshop-nav-btn"
+                    <i className="fa fa-trash-o mr-2"></i> Delete Invoice
+                </div>
+
+                <div
+                    className="d-flex align-items-center px-4 py-2"
                     onClick={fetchInsights}
                     style={{
                         background: 'rgba(16, 185, 129, 0.1)',
                         color: '#10b981',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontWeight: '500',
+                        fontSize: '14px',
+                        transition: 'all 0.2s',
                         border: '1px solid rgba(16, 185, 129, 0.2)'
                     }}
                 >
-                    <i className={`fa fa-refresh ${loading ? 'fa-spin' : ''}`}></i>
-                    <span>Refresh</span>
-                </Button>
+                    <i className={`fa fa-refresh mr-2 ${loading ? 'fa-spin' : ''}`}></i> Refresh
+                </div>
             </div>
 
             <Card className="myshop-material-card">
@@ -175,6 +221,12 @@ const SalesOverview = () => {
                     Analytics Overview
                 </CardTitle>
                 <div className="myshop-filter-pills">
+                    <Button
+                        onClick={() => setDateRange('yesterday')}
+                        className={`myshop-filter-pill ${dateRange === 'yesterday' ? 'active' : ''}`}
+                    >
+                        Yesterday
+                    </Button>
                     <Button
                         onClick={() => setDateRange('today')}
                         className={`myshop-filter-pill ${dateRange === 'today' ? 'active' : ''}`}

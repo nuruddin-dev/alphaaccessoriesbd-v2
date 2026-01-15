@@ -110,9 +110,11 @@ router.use('/cargo', cargoRoutes);
 const investorRoutes = require('./investor');
 const investmentRoutes = require('./investment');
 const investmentStatsRoutes = require('./investmentStats');
+const steadfastRoutes = require('./steadfast');
 router.use('/investor', investorRoutes);
 router.use('/investment', investmentRoutes);
 router.use('/investment-stats', investmentStatsRoutes);
+router.use('/steadfast', steadfastRoutes);
 
 
 module.exports = router;

@@ -80,7 +80,7 @@ export const addCustomer = () => {
       const response = await axios.post(`${API_URL}/customer/add`, newCustomer);
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };
@@ -130,7 +130,7 @@ export const updateCustomer = () => {
       );
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };
@@ -182,7 +182,7 @@ export const deleteCustomer = id => {
       const response = await axios.delete(`${API_URL}/customer/${id}`);
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };

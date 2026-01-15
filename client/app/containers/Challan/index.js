@@ -11,12 +11,9 @@ import {
     Input,
     FormGroup,
     Label,
-    Badge,
-    Modal,
-    ModalHeader,
-    ModalBody,
     ModalFooter
 } from 'reactstrap';
+import { success, error, warning } from 'react-notification-system-redux';
 import dayjs from 'dayjs';
 
 import './styles.css';
@@ -160,7 +157,7 @@ class Challan extends React.PureComponent {
         const { user } = this.props;
 
         if (!customerName || items.some(i => !i.productName)) {
-            alert('Please provide customer name and item details.');
+            this.props.warning({ title: 'Please provide customer name and item details.', position: 'tr', autoDismiss: 3 });
             return;
         }
 
@@ -184,12 +181,12 @@ class Challan extends React.PureComponent {
 
             const response = await axios.post(`${API_URL}/challan/create`, payload);
             if (response.data.success) {
-                alert('Landing saved successfully.');
+                this.props.success({ title: 'Landing saved successfully.', position: 'tr', autoDismiss: 3 });
                 this.toggleAddMode();
                 this.fetchChallans();
             }
         } catch (error) {
-            alert(error.response?.data?.error || 'Failed to save record');
+            this.props.error({ title: err.response?.data?.error || 'Failed to save record', position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -217,10 +214,10 @@ class Challan extends React.PureComponent {
         }
         try {
             await axios.delete(`${API_URL}/challan/${id}`);
-            alert('Record deleted successfully.');
+            this.props.success({ title: 'Record deleted successfully.', position: 'tr', autoDismiss: 3 });
             this.fetchChallans();
         } catch (error) {
-            alert('Failed to delete.');
+            this.props.error({ title: 'Failed to delete.', position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -260,11 +257,11 @@ class Challan extends React.PureComponent {
                 window.open(`/dashboard/invoice?prefill=${query}`, '_blank');
             }
 
-            alert('Settlement processed successfully.');
+            this.props.success({ title: 'Settlement processed successfully.', position: 'tr', autoDismiss: 3 });
             this.setState({ isSettleModalOpen: false });
             this.fetchChallans();
         } catch (error) {
-            alert('Failed to settle.');
+            this.props.error({ title: 'Failed to settle.', position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -272,15 +269,37 @@ class Challan extends React.PureComponent {
         const { isAddMode, challans, isLoading, items, searchResults, focusedRowIndex, searchTerm } = this.state;
 
         return (
-            <SubPage title={isAddMode ? 'New Landing' : 'Landings'}>
+            <div className="challan-page">
                 <div className="challan-container">
                     {!isAddMode ? (
                         <div className="list-view">
-                            <div className="mb-4 d-flex justify-content-between align-items-center">
-                                <p className="text-muted">Track products given to other shops as samples or debt.</p>
-                                <Button color="primary" onClick={this.toggleAddMode}>
-                                    <i className="fa fa-plus mr-2"></i> New Landing
-                                </Button>
+                            <div className="d-flex justify-content-between align-items-center" style={{ background: '#fff', padding: '20px 24px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '20px' }}>
+                                <div className="d-flex align-items-center">
+                                    <div style={{
+                                        width: '4px',
+                                        height: '24px',
+                                        background: '#06b6d4',
+                                        borderRadius: '2px',
+                                        marginRight: '12px'
+                                    }}></div>
+                                    <h2 className="mb-0" style={{
+                                        fontWeight: '700',
+                                        color: '#1e293b',
+                                        fontSize: '20px',
+                                        letterSpacing: '-0.5px'
+                                    }}>
+                                        Landings
+                                    </h2>
+                                    <span className="text-muted small ml-3 d-none d-md-block" style={{ borderLeft: '1px solid #e2e8f0', paddingLeft: '15px' }}>
+                                        Track products given as samples or debt
+                                    </span>
+                                </div>
+                                <button
+                                    className="btn-neon btn-neon--cyan"
+                                    onClick={this.toggleAddMode}
+                                >
+                                    <i className="fa fa-plus-circle"></i> New Landing
+                                </button>
                             </div>
 
                             <Card className="shadow-sm border-0">
@@ -506,15 +525,21 @@ class Challan extends React.PureComponent {
                         </ModalFooter>
                     </Modal>
                 </div>
-            </SubPage>
+            </div>
         );
     }
 }
 
-const mapStateToProps = state => {
-    return {
-        user: state.account.user
-    };
-};
+const mapStateToProps = state => ({
+    user: state.account.user
+});
 
-export default connect(mapStateToProps, actions)(Challan);
+const mapDispatchToProps = dispatch => ({
+    ...actions(dispatch),
+    success: opts => dispatch(success(opts)),
+    error: opts => dispatch(error(opts)),
+    warning: opts => dispatch(warning(opts)),
+    dispatch
+});
+
+export default connect(mapStateToProps, mapDispatchToProps)(Challan);

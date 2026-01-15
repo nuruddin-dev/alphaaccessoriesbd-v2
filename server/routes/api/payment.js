@@ -292,8 +292,10 @@ router.post('/create', auth, role.check(ROLES.Admin), async (req, res) => {
 
         // Calculate balance from invoices
         for (const invoice of sortedInvoices) {
-            if (isFirstInvoice && invoice.previousDue > 0) {
-                runningBalance += invoice.previousDue;
+            if (isFirstInvoice) {
+                if (invoice.previousDue > 0) {
+                    runningBalance += invoice.previousDue;
+                }
                 isFirstInvoice = false;
             }
             const discount = invoice.discount || 0;
@@ -415,8 +417,10 @@ router.delete('/:customerId/:paymentId', auth, role.check(ROLES.Admin), async (r
 
         // Calculate balance from invoices (only use the checkout 'paid' amount)
         for (const invoice of sortedInvoices) {
-            if (isFirstInvoice && invoice.previousDue > 0) {
-                runningBalance += invoice.previousDue;
+            if (isFirstInvoice) {
+                if (invoice.previousDue > 0) {
+                    runningBalance += invoice.previousDue;
+                }
                 isFirstInvoice = false;
             }
             const discount = invoice.discount || 0;

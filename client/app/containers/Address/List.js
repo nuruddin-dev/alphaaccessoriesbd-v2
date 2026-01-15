@@ -34,19 +34,25 @@ class List extends React.PureComponent {
     const { history, addresses, user } = this.props;
 
     return (
-      <>
-        <SubPage
-          title='Addresses'
-          actionTitle={'Add'}
-          handleAction={() => history.push('/dashboard/address/add')}
-        >
+      <SubPage
+        title='Addresses'
+        actionComponent={(
+          <button
+            className="btn-neon btn-neon--cyan"
+            onClick={() => history.push('/dashboard/address/add')}
+          >
+            <i className="fa fa-plus-circle"></i> Add Address
+          </button>
+        )}
+      >
+        <div className="bg-white rounded shadow-sm p-3">
           {addresses.length > 0 ? (
             <AddressList addresses={addresses} />
           ) : (
             <NotFound message='No addresses found.' />
           )}
-        </SubPage>
-      </>
+        </div>
+      </SubPage>
     );
   }
 }

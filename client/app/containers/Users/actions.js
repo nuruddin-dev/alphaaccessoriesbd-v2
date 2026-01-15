@@ -71,3 +71,19 @@ export const searchUsers = filter => {
     }
   };
 };
+
+export const updateUserRole = (id, role) => {
+  return async (dispatch, getState) => {
+    try {
+      const response = await axios.put(`${API_URL}/user/${id}/role`, {
+        role
+      });
+
+      if (response.data.success) {
+        dispatch(fetchUsers());
+      }
+    } catch (error) {
+      handleError(error, dispatch);
+    }
+  };
+};

@@ -10,9 +10,9 @@ const SearchResultMeta = props => {
   const { count, label } = props;
 
   return (
-    <p className='fw-normal'>
-      {count} {label}
-    </p>
+    <div className='search-result-meta'>
+      Find <strong>{count}</strong> {label}
+    </div>
   );
 };
 

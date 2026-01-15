@@ -7,8 +7,8 @@
     }
 
     .order-box {
-      border-radius: $border-radius-default;
-      box-shadow: $box-shadow-secondary;
+      border-radius: 8px;
+      border: 1px solid #f1f5f9;
 
       .order-first-item {
         align-self: center;
@@ -50,6 +50,7 @@
     }
   }
 }
+
 /* end order success styles */
 
 /* start order meta styles */
@@ -65,6 +66,7 @@
     margin-bottom: 5px;
   }
 }
+
 /* end order meta styles */
 
 /* start order items styles */
@@ -135,6 +137,7 @@
     font-size: $font-size-medium;
   }
 }
+
 /* end order items styles */
 
 /* start order summary styles */
@@ -147,6 +150,7 @@
     margin-bottom: 16px;
   }
 }
+
 /* end order summary styles */
 
 .order-status {
@@ -160,19 +164,25 @@
 }
 
 .sweet-alert-icon {
-  margin: 0 auto; /* Set left and right margins to auto */
-  display: block; /* Ensure the div is a block-level element */
+  margin: 0 auto;
+  /* Set left and right margins to auto */
+  display: block;
+  /* Ensure the div is a block-level element */
 }
+
 .sweet-alert-popup {
   padding: 10px;
 }
+
 .sweet-alert-actions {
   margin: 20px;
 }
 
 .sweet-alert-input {
-  width: 99% !important; /* Set input field width to 100% of its container */
-  box-sizing: border-box; /* Include padding and border in the element's total width */
+  width: 99% !important;
+  /* Set input field width to 100% of its container */
+  box-sizing: border-box;
+  /* Include padding and border in the element's total width */
   left: 0;
   margin-bottom: 10px !important;
   margin-top: 10px !important;
@@ -183,4 +193,5 @@
 .sweet-alert-confirm {
   color: #ffffff;
 }
+
 /* end order common styles */

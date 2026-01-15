@@ -111,7 +111,11 @@ const DynamicRouteHandler = () => {
 class Application extends React.PureComponent {
   constructor(props) {
     super(props);
+    this.state = {
+      dashboardNavVisible: false
+    };
     this.handleStorage = this.handleStorage.bind(this);
+    this.toggleDashboardNav = this.toggleDashboardNav.bind(this);
   }
 
   componentDidMount() {
@@ -126,6 +130,18 @@ class Application extends React.PureComponent {
     document.addEventListener('keydown', this.handleTabbing);
     document.addEventListener('mousedown', this.handleMouseDown);
     window.addEventListener('storage', this.handleStorage);
+    window.addEventListener('toggle-dashboard-nav', this.toggleDashboardNav);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('storage', this.handleStorage);
+    window.removeEventListener('toggle-dashboard-nav', this.toggleDashboardNav);
+    document.removeEventListener('keydown', this.handleTabbing);
+    document.removeEventListener('mousedown', this.handleMouseDown);
+  }
+
+  toggleDashboardNav() {
+    this.setState(prevState => ({ dashboardNavVisible: !prevState.dashboardNavVisible }));
   }
 
   handleStorage(e) {
@@ -147,11 +163,13 @@ class Application extends React.PureComponent {
 
   render() {
     const isInvoicePage = this.props.location.pathname.startsWith('/dashboard/invoice');
+    const isDashboard = this.props.location.pathname.startsWith('/dashboard');
+    const { dashboardNavVisible } = this.state;
 
     return (
       <div className='application'>
         <Notification />
-        {!isInvoicePage && <Navigation />}
+        {!isInvoicePage && (!isDashboard || dashboardNavVisible) && <Navigation />}
         <main className='main'>
           <Container>
             <div className='wrapper'>
@@ -193,7 +211,7 @@ class Application extends React.PureComponent {
             </div>
           </Container>
         </main>
-        {!isInvoicePage && <Footer />}
+        {!isInvoicePage && !isDashboard && <Footer />}
       </div>
     );
   }

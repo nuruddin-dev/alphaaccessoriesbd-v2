@@ -24,12 +24,18 @@ class List extends React.PureComponent {
     const { history, categories, isLoading } = this.props;
 
     return (
-      <>
-        <SubPage
-          title='Categories'
-          actionTitle='Add'
-          handleAction={() => history.push('/dashboard/category/add')}
-        >
+      <SubPage
+        title='Categories'
+        actionComponent={(
+          <button
+            className="btn-neon btn-neon--cyan"
+            onClick={() => history.push('/dashboard/category/add')}
+          >
+            <i className="fa fa-plus-circle"></i> Add Category
+          </button>
+        )}
+      >
+        <div className="bg-white rounded shadow-sm p-3">
           {isLoading ? (
             <LoadingIndicator inline />
           ) : categories.length > 0 ? (
@@ -37,8 +43,8 @@ class List extends React.PureComponent {
           ) : (
             <NotFound message='No categories found.' />
           )}
-        </SubPage>
-      </>
+        </div>
+      </SubPage>
     );
   }
 }

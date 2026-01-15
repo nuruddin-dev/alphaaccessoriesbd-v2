@@ -100,4 +100,18 @@ router.post('/payout-global/:investorId', auth, role.check(ROLES.Admin), async (
     }
 });
 
+// @route   GET api/investment
+// @desc    Get all investments (for mapping to shipments)
+// @access  Private (Admin)
+router.get('/', auth, role.check(ROLES.Admin), async (req, res) => {
+    try {
+        const investments = await Investment.find()
+            .populate('investor', 'name')
+            .select('shipmentId investor capitalAmount');
+        res.status(200).json({ investments });
+    } catch (error) {
+        res.status(400).json({ error: 'Error fetching investments.' });
+    }
+});
+
 module.exports = router;

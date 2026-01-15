@@ -46,7 +46,7 @@ export const forgotPassowrd = () => {
 
       const response = await axios.post(`${API_URL}/auth/forgot`, user);
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };

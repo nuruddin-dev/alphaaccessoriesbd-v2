@@ -91,7 +91,7 @@ export const deleteReview = id => {
       const response = await axios.delete(`${API_URL}/review/delete/${id}`);
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };
@@ -176,7 +176,7 @@ export const addProductReview = () => {
       );
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };

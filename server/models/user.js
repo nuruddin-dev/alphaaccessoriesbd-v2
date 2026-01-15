@@ -16,10 +16,12 @@ const UserSchema = new Schema({
     type: String
   },
   firstName: {
-    type: String
+    type: String,
+    set: v => v ? v.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : v
   },
   lastName: {
-    type: String
+    type: String,
+    set: v => v ? v.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : v
   },
   password: {
     type: String

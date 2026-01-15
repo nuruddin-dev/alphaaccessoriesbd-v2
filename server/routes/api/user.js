@@ -22,7 +22,7 @@ router.get('/search', auth, role.check(ROLES.Admin), async (req, res) => {
           { email: { $regex: regex } }
         ]
       },
-      { password: 0, _id: 0 }
+      { password: 0 }
     ).populate('merchant', 'name');
 
     res.status(200).json({
@@ -40,7 +40,7 @@ router.get('/', auth, async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query;
 
-    const users = await User.find({}, { password: 0, _id: 0, googleId: 0 })
+    const users = await User.find({}, { password: 0, googleId: 0 })
       .sort('-created')
       .populate('merchant', 'name')
       .limit(limit * 1)
@@ -97,6 +97,30 @@ router.put('/', auth, async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Your profile is successfully updated!',
+      user: userDoc
+    });
+  } catch (error) {
+    res.status(400).json({
+      error: 'Your request could not be processed. Please try again.'
+    });
+  }
+});
+
+router.put('/:id/role', auth, role.check(ROLES.Admin), async (req, res) => {
+  try {
+    const { role } = req.body;
+    const userId = req.params.id;
+
+    const userDoc = await User.findByIdAndUpdate(
+      userId,
+      { role },
+      {
+        new: true
+      }
+    );
+
+    res.status(200).json({
+      success: true,
       user: userDoc
     });
   } catch (error) {

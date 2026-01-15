@@ -25,12 +25,18 @@ class List extends React.PureComponent {
     const { history, brands, isLoading, user } = this.props;
 
     return (
-      <>
-        <SubPage
-          title={user.role === ROLES.Admin ? 'Brands' : 'Brand'}
-          actionTitle={user.role === ROLES.Admin && 'Add'}
-          handleAction={() => history.push('/dashboard/brand/add')}
-        >
+      <SubPage
+        title={user.role === ROLES.Admin ? 'Brands' : 'Brand'}
+        actionComponent={user.role === ROLES.Admin && (
+          <button
+            className="btn-neon btn-neon--cyan"
+            onClick={() => history.push('/dashboard/brand/add')}
+          >
+            <i className="fa fa-plus-circle"></i> Add Brand
+          </button>
+        )}
+      >
+        <div className="bg-white rounded shadow-sm p-3">
           {isLoading ? (
             <LoadingIndicator inline />
           ) : brands.length > 0 ? (
@@ -38,8 +44,8 @@ class List extends React.PureComponent {
           ) : (
             <NotFound message='No brands found.' />
           )}
-        </SubPage>
-      </>
+        </div>
+      </SubPage>
     );
   }
 }

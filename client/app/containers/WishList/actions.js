@@ -21,7 +21,7 @@ export const updateWishlist = (isLiked, productId) => {
         });
 
         const successfulOptions = {
-          title: `${response.data.message}`,
+          title: response.data.message || 'Updated successfully',
           position: 'tr',
           autoDismiss: 1
         };

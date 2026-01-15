@@ -186,7 +186,7 @@ export const updateOrderItemStatus = (itemId, status) => {
       }
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };
@@ -324,7 +324,7 @@ function openModal(user, dispatch) {
 
           // Handle successful profile update
           const successfulOptions = {
-            title: `${response.data.message}`,
+            title: response.data.message || 'Updated successfully',
             position: 'tr',
             autoDismiss: 1
           };

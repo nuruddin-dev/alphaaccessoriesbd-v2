@@ -47,6 +47,7 @@ router.get('/', auth, async (req, res) => {
     try {
         const imports = await ImportOrder.find()
             .populate('supplier')
+            .populate('shipments.cargo')
             .sort('-created');
         res.status(200).json({ imports });
     } catch (error) {

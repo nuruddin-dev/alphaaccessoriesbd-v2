@@ -4,7 +4,7 @@
  *
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 
 import { Switch, Route, useLocation } from 'react-router-dom';
 import { Row, Col } from 'reactstrap';
@@ -34,6 +34,8 @@ import Import from '../../../containers/Import';
 import Supplier from '../../../containers/Supplier';
 import Challan from '../../../containers/Challan';
 import Investor from '../../../containers/Investor';
+import SteadfastCourier from '../../../containers/Courier';
+import AdminDashboardSummary from './Summary/Admin';
 
 const Admin = props => {
   const location = useLocation();
@@ -42,6 +44,8 @@ const Admin = props => {
   // Check if the current route is /dashboard/orderNows
   const isOrderNowSelected = location.pathname === '/dashboard/orderNows';
   const isInvoiceSelected = location.pathname.startsWith('/dashboard/invoice') || location.pathname.startsWith('/dashboard/supplier/orders');
+
+
 
   return (
     <div className='admin'>
@@ -77,10 +81,11 @@ const Admin = props => {
           </>
         )}
 
-        <div className={`flex-grow-1 ${isInvoiceSelected ? 'p-0' : 'p-3'}`} style={{ minWidth: 0, backgroundColor: '#f5f7fb' }}>
-          <div className='panel-body bg-transparent shadow-none p-0' style={isInvoiceSelected ? { marginTop: 0 } : {}}>
+        <div className={`flex-grow-1 ${isInvoiceSelected || location.pathname.includes('/dashboard/courier') || location.pathname.includes('/dashboard/investor') ? 'p-0' : 'p-3'}`} style={{ minWidth: 0, backgroundColor: '#f5f7fb' }}>
+          <div className='panel-body bg-transparent shadow-none p-0' style={isInvoiceSelected || location.pathname.includes('/dashboard/courier') ? { marginTop: 0 } : {}}>
             <Switch>
-              <Route exact path='/dashboard' component={Account} />
+              <Route exact path='/dashboard' render={() => <AdminDashboardSummary user={props.user} />} />
+              <Route path='/dashboard/my-account' component={Account} />
               <Route path='/dashboard/invoice' component={Invoice} />
               <Route path='/dashboard/accounts' component={AccountsManager} />
               <Route path='/dashboard/myshop' component={MyShop} />
@@ -103,6 +108,7 @@ const Admin = props => {
               <Route path='/dashboard/lendings' component={Challan} />
               <Route path='/dashboard/investors' component={Investor} />
               <Route path='/dashboard/investor' component={Investor} />
+              <Route path='/dashboard/courier' component={SteadfastCourier} />
               <Route path='*' component={Page404} />
             </Switch>
           </div>

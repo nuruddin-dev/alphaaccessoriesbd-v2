@@ -1,4 +1,6 @@
 import React, { Component } from 'react';
+import { connect } from 'react-redux';
+import { success, error, warning } from 'react-notification-system-redux';
 import Modal from 'react-modal';
 import axios from 'axios';
 import { API_URL } from '../../../constants';
@@ -110,9 +112,27 @@ class PaymentModal extends Component {
     fetchAccounts = async () => {
         try {
             const response = await axios.get(`${API_URL}/account`);
-            const accounts = response.data.accounts || [];
+            let accounts = response.data.accounts || [];
 
-            // Add 'None' account for returns/adjustments
+            // Sorting logic: Cash > all Bank > all mobile banking. Secondary sort by name.
+            const getPriority = (type) => {
+                const t = type.toLowerCase();
+                if (t === 'cash') return 0;
+                if (t === 'bank') return 1;
+                if (t === 'mobile' || t === 'bkash' || t === 'nagad' || t === 'rocket') return 2;
+                return 3;
+            };
+
+            accounts.sort((a, b) => {
+                const priorityA = getPriority(a.type);
+                const priorityB = getPriority(b.type);
+                if (priorityA !== priorityB) {
+                    return priorityA - priorityB;
+                }
+                return a.name.localeCompare(b.name);
+            });
+
+            // Add 'None' account for returns/adjustments at the top
             const updatedAccounts = [
                 { _id: 'none', name: 'None (Product Return/Adjustment)', type: 'none' },
                 ...accounts
@@ -209,7 +229,7 @@ class PaymentModal extends Component {
             });
 
             if (response.data.success) {
-                alert('Payment recorded successfully!');
+                this.props.success({ title: 'Payment recorded successfully!', position: 'tr', autoDismiss: 3 });
                 this.setState({
                     amount: '',
                     fee: '',
@@ -419,4 +439,14 @@ class PaymentModal extends Component {
     }
 }
 
-export default PaymentModal;
+const mapStateToProps = state => ({
+    user: state.account.user
+});
+
+const mapDispatchToProps = dispatch => ({
+    success: opts => dispatch(success(opts)),
+    error: opts => dispatch(error(opts)),
+    warning: opts => dispatch(warning(opts))
+});
+
+export default connect(mapStateToProps, mapDispatchToProps)(PaymentModal);

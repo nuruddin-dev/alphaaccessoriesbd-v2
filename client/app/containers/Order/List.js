@@ -60,13 +60,35 @@ class List extends React.PureComponent {
 
     return (
       <div className='order-dashboard'>
-        <SubPage
-          title='Your Orders'
-          actionTitle={user.role === ROLES.Admin && 'Customer Orders'}
-          handleAction={() =>
-            user.role === ROLES.Admin && history.push('/dashboard/orders/')
-          }
-        >
+        <div className="d-flex justify-content-between align-items-center" style={{ background: '#fff', padding: '20px 24px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '20px' }}>
+          <div className="d-flex align-items-center">
+            <div style={{
+              width: '4px',
+              height: '24px',
+              background: '#06b6d4',
+              borderRadius: '2px',
+              marginRight: '12px'
+            }}></div>
+            <h2 className="mb-0" style={{
+              fontWeight: '700',
+              color: '#1e293b',
+              fontSize: '20px',
+              letterSpacing: '-0.5px'
+            }}>
+              Your Orders
+            </h2>
+          </div>
+          {user.role === ROLES.Admin && (
+            <button
+              className="btn-neon btn-neon--cyan"
+              onClick={() => history.push('/dashboard/orders/')}
+            >
+              Customer Orders
+            </button>
+          )}
+        </div>
+
+        <div className="bg-white rounded shadow-sm p-3">
           <OrderSearch
             onBlur={this.handleOrderSearch}
             onSearch={this.handleOrderSearch}
@@ -93,7 +115,7 @@ class List extends React.PureComponent {
           {!isLoading && !displayOrders && (
             <NotFound message='You have no orders yet.' />
           )}
-        </SubPage>
+        </div>
       </div>
     );
   }

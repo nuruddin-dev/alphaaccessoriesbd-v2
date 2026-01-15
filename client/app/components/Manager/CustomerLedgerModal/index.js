@@ -1,4 +1,6 @@
 import React, { Component } from 'react';
+import { connect } from 'react-redux';
+import { success, error, warning } from 'react-notification-system-redux';
 import { Link } from 'react-router-dom';
 import Modal from 'react-modal';
 import axios from 'axios';
@@ -460,10 +462,10 @@ class CustomerLedgerModal extends Component {
             await navigator.clipboard.write([
                 new ClipboardItem({ 'image/png': blob })
             ]);
-            alert('Image copied to clipboard!');
+            this.props.success({ title: 'Image copied to clipboard!', position: 'tr', autoDismiss: 3 });
         } catch (err) {
             console.error('Failed to copy:', err);
-            alert('Failed to copy image to clipboard.');
+            this.props.error({ title: 'Failed to copy image to clipboard.', position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -990,4 +992,14 @@ class CustomerLedgerModal extends Component {
     }
 }
 
-export default CustomerLedgerModal;
+const mapStateToProps = state => ({
+    user: state.account.user
+});
+
+const mapDispatchToProps = dispatch => ({
+    success: opts => dispatch(success(opts)),
+    error: opts => dispatch(error(opts)),
+    warning: opts => dispatch(warning(opts))
+});
+
+export default connect(mapStateToProps, mapDispatchToProps)(CustomerLedgerModal);

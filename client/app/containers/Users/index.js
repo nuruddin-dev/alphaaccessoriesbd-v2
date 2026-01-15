@@ -60,28 +60,105 @@ class Users extends React.PureComponent {
 
     return (
       <div className='users-dashboard'>
-        <SubPage title='Users' />
-        <UserSearch
-          onSearch={this.handleUserSearch}
-          onSearchSubmit={searchUsers}
-        />
-        {isLoading && <LoadingIndicator />}
-        {displayUsers && (
-          <>
+        <style>{`
+          .users-dashboard .pagination-box .pagination {
+            margin-bottom: 0;
+            gap: 5px;
+          }
+          .users-dashboard .pagination-box .page-item .page-link {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px !important;
+            padding: 6px 12px;
+            color: #64748b;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+          }
+          .users-dashboard .pagination-box .page-item.active .page-link {
+            background-color: #06b6d4;
+            border-color: #06b6d4;
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(6, 182, 212, 0.2);
+          }
+          .users-dashboard .pagination-box .page-item:hover:not(.active) .page-link {
+            background-color: #f1f5f9;
+            color: #06b6d4;
+          }
+          .users-dashboard .search-result-meta {
+            padding: 0;
+            margin: 0;
+            font-size: 14px;
+            color: #64748b;
+          }
+          .users-dashboard .search-result-meta strong {
+            color: #06b6d4;
+            font-weight: 700;
+          }
+        `}</style>
+        <div className="d-flex justify-content-between align-items-center" style={{ background: '#fff', padding: '20px 24px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '20px' }}>
+          <div className="d-flex align-items-center">
+            <div style={{
+              width: '4px',
+              height: '24px',
+              background: '#06b6d4',
+              borderRadius: '2px',
+              marginRight: '12px'
+            }}></div>
+            <h2 className="mb-0" style={{
+              fontWeight: '700',
+              color: '#1e293b',
+              fontSize: '20px',
+              letterSpacing: '-0.5px'
+            }}>
+              Users Management
+            </h2>
+          </div>
+          <div style={{ width: '300px' }}>
+            <UserSearch
+              onSearch={this.handleUserSearch}
+              onSearchSubmit={searchUsers}
+            />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden" style={{ border: '1px solid #f1f5f9' }}>
+          <div className="p-3 border-bottom d-flex justify-content-between align-items-center bg-light/50">
+            <SearchResultMeta
+              label='users'
+              count={isSearch ? filteredUsers.length : advancedFilters.count}
+            />
             {!isSearch && displayPagination && (
               <Pagination
                 totalPages={advancedFilters.totalPages}
                 onPagination={this.handleOnPagination}
               />
             )}
-            <SearchResultMeta
-              label='users'
-              count={isSearch ? filteredUsers.length : advancedFilters.count}
-            />
-            <UserList users={filteredUsers} />
-          </>
-        )}
-        {!isLoading && !displayUsers && <NotFound message='No users found.' />}
+          </div>
+
+          <div className="p-0">
+            {isLoading ? (
+              <div className="py-5 text-center">
+                <LoadingIndicator inline />
+              </div>
+            ) : displayUsers ? (
+              <UserList
+                users={filteredUsers}
+                updateUserRole={this.props.updateUserRole}
+              />
+            ) : (
+              <NotFound message='No users found.' />
+            )}
+          </div>
+
+          {!isSearch && displayPagination && (
+            <div className="p-3 border-top d-flex justify-content-end bg-light/50">
+              <Pagination
+                totalPages={advancedFilters.totalPages}
+                onPagination={this.handleOnPagination}
+              />
+            </div>
+          )}
+        </div>
       </div>
     );
   }

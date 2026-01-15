@@ -145,7 +145,7 @@ export const addBrand = () => {
       const response = await axios.post(`${API_URL}/brand/add`, brand);
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };
@@ -205,7 +205,7 @@ export const updateBrand = () => {
       });
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };
@@ -232,7 +232,7 @@ export const activateBrand = (id, value) => {
       });
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };
@@ -256,7 +256,7 @@ export const deleteBrand = id => {
       const response = await axios.delete(`${API_URL}/brand/delete/${id}`);
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };

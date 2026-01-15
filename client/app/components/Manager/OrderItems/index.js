@@ -80,113 +80,107 @@ const OrderItems = props => {
 
   return (
     <div className='order-items pt-3'>
-      <h2>Order Items</h2>
-      <Row>
+      <div className="d-flex align-items-center mb-4">
+        <div style={{ width: '3px', height: '18px', background: '#06b6d4', marginRight: '10px', borderRadius: '2px' }}></div>
+        <h2 className="mb-0" style={{ fontSize: '18px', fontWeight: '700', color: '#334155' }}>Order Items</h2>
+      </div>
+
+      <div className="order-items-container" style={{ display: 'grid', gap: '16px' }}>
         {order.products.map((item, index) => (
-          <Col xs='12' key={index} className='item'>
-            <div className='order-item-box'>
-              <div className='d-flex justify-content-between flex-column flex-md-row'>
-                <div className='d-flex align-items-center box'>
-                  <img
-                    loading='lazy'
-                    className='item-image'
-                    src={`${
-                      item.product && item.product.imageUrl
-                        ? item.product.imageUrl
-                        : '/images/placeholder-image.png'
-                    }`}
-                  />
-                  <div className='d-md-flex flex-1 align-items-start ml-4 item-box'>
-                    <div className='item-details'>
-                      {item.product ? (
-                        <>
-                          <Link
-                            to={`/${item.product?.slug}`}
-                            className='item-link'
-                          >
-                            <h4 className='d-block item-name one-line-ellipsis'>
-                              {item.product?.name}
-                            </h4>
-                          </Link>
-                          <div className='d-flex align-items-center justify-content-between'>
-                            <span className='price'>
-                              ৳{item.purchasePrice || item.product.price}
-                            </span>
-                          </div>
-                        </>
-                      ) : (
-                        <h4>Not Available</h4>
-                      )}
-                    </div>
-                    <div className='d-flex justify-content-between flex-wrap d-md-none mt-1'>
-                      <p className='mb-1 mr-4'>
-                        Status
-                        <span className='order-label order-status'>{` ${item.status}`}</span>
-                      </p>
-                      <p className='mb-1 mr-4'>
-                        Quantity
-                        <span className='order-label'>{` ${item.quantity}`}</span>
-                      </p>
-                      <p className='mb-1 mr-4'>
-                        Color
-                        <div
-                          style={{
-                            backgroundColor: item.color.toLowerCase(),
-                            width: '20px',
-                            height: '20px',
-                            margin: 'auto',
-                            border: '1px solid #ccc'
-                          }}
-                        />
-                      </p>
-                      <p>
-                        Total Price
-                        <span className='order-label'>{` ৳${item.totalPrice}`}</span>
-                      </p>
-                    </div>
+          <div key={index} className='order-item-card' style={{
+            background: '#fff',
+            borderRadius: '16px',
+            padding: '20px',
+            border: '1px solid #f1f5f9',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.01)',
+            transition: 'all 0.2s ease'
+          }}>
+            <Row className="align-items-center">
+              <Col xs='12' md='6'>
+                <div className='d-flex align-items-center'>
+                  <div style={{ width: '80px', height: '80px', borderRadius: '12px', overflow: 'hidden', flexShrink: 0, border: '1px solid #f1f5f9' }}>
+                    <img
+                      loading='lazy'
+                      className='item-image'
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      src={`${item.product && item.product.imageUrl
+                          ? item.product.imageUrl
+                          : '/images/placeholder-image.png'
+                        }`}
+                    />
+                  </div>
+                  <div className='ml-3'>
+                    {item.product ? (
+                      <>
+                        <Link to={`/${item.product?.slug}`} style={{ textDecoration: 'none' }}>
+                          <h4 style={{ fontSize: '15px', fontWeight: '700', color: '#1e293b', marginBottom: '4px' }}>
+                            {item.product?.name}
+                          </h4>
+                        </Link>
+                        <span style={{ fontSize: '14px', color: '#0891b2', fontWeight: '600' }}>
+                          ৳{(item.purchasePrice || item.product.price).toLocaleString()}
+                        </span>
+                      </>
+                    ) : (
+                      <h4 style={{ fontSize: '15px', fontWeight: '700', color: '#94a3b8' }}>Product Not Available</h4>
+                    )}
                   </div>
                 </div>
+              </Col>
 
-                <div className='d-none d-md-flex justify-content-between align-items-center box'>
-                  <div className='text-center'>
-                    <p className='order-label order-status'>{`${item.status}`}</p>
-                    <p>Status</p>
+              <Col xs='12' md='6' className="mt-3 mt-md-0">
+                <div className='d-flex justify-content-between align-items-center bg-slate-50 p-3 rounded-lg' style={{ background: '#f8fafc', borderRadius: '12px' }}>
+                  <div className='text-center px-1'>
+                    <span style={{ fontSize: '10px', color: '#64748b', display: 'block', textTransform: 'uppercase', marginBottom: '2px' }}>Status</span>
+                    <span style={{
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      color: item.status === 'Cancelled' ? '#ef4444' : '#0891b2',
+                      background: item.status === 'Cancelled' ? '#fee2e2' : '#e0f7fa',
+                      padding: '2px 8px',
+                      borderRadius: '10px',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {item.status}
+                    </span>
                   </div>
 
-                  <div className='text-center'>
-                    <p className='order-label'>{` ${item.quantity}`}</p>
-                    <p>Quantity</p>
+                  <div className='text-center px-1'>
+                    <span style={{ fontSize: '10px', color: '#64748b', display: 'block', textTransform: 'uppercase', marginBottom: '2px' }}>Qty</span>
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b' }}>{item.quantity}</span>
                   </div>
 
-                  <div className='text-center'>
+                  <div className='text-center px-1'>
+                    <span style={{ fontSize: '10px', color: '#64748b', display: 'block', textTransform: 'uppercase', marginBottom: '2px' }}>Color</span>
                     <div
                       style={{
                         backgroundColor: item.color.toLowerCase(),
-                        width: '20px',
-                        height: '20px',
-                        margin: 'auto',
-                        border: '1px solid #ccc'
+                        width: '18px',
+                        height: '18px',
+                        margin: '0 auto',
+                        borderRadius: '4px',
+                        border: '2px solid #fff',
+                        boxShadow: '0 0 0 1px #e2e8f0'
                       }}
                     />
-                    <p>Color</p>
                   </div>
 
-                  <div className='text-center'>
-                    <p className='order-label'>{` ৳${item.totalPrice}`}</p>
-
-                    <p>Total Price</p>
+                  <div className='text-center px-1'>
+                    <span style={{ fontSize: '10px', color: '#64748b', display: 'block', textTransform: 'uppercase', marginBottom: '2px' }}>Total Price</span>
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b' }}>৳{item.totalPrice.toLocaleString()}</span>
                   </div>
                 </div>
-              </div>
-              {item.product && (
-                <div className='text-right mt-2 mt-md-0'>
-                  {renderItemsAction(item)}
-                </div>
-              )}
-            </div>
-          </Col>
+
+                {item.product && (
+                  <div className='text-right mt-3'>
+                    {renderItemsAction(item)}
+                  </div>
+                )}
+              </Col>
+            </Row>
+          </div>
         ))}
-      </Row>
+      </div>
     </div>
   );
 };

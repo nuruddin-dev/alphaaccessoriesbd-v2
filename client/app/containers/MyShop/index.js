@@ -85,7 +85,7 @@ const MyShop = () => {
                 const res = await axios.get(`${API_URL}/myshop-mgmt/property`);
                 setProperties(res.data.properties);
             }
-        } catch (err) {
+        } catch (error) {
             setError('Failed to fetch data');
         } finally {
             setLoading(false);
@@ -111,7 +111,7 @@ const MyShop = () => {
             ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
             setPropertyHistory(combinedHistory);
-        } catch (err) {
+        } catch (error) {
             setError('Failed to fetch property history');
         } finally {
             setLoading(false);
@@ -126,7 +126,7 @@ const MyShop = () => {
             await axios.post(`${API_URL}/myshop-mgmt/property/${modal.data._id}/note`, data);
             toggleModal();
             fetchData();
-        } catch (err) {
+        } catch (error) {
             setError('Failed to save note');
         }
     };
@@ -154,7 +154,7 @@ const MyShop = () => {
 
             // Sort back to descending for display
             setOwnerHistory(historyWithBalance.reverse());
-        } catch (err) {
+        } catch (error) {
             setError('Failed to fetch owner history');
         } finally {
             setLoading(false);
@@ -181,7 +181,7 @@ const MyShop = () => {
             });
 
             setStaffHistory(historyWithBalance.reverse());
-        } catch (err) {
+        } catch (error) {
             setError('Failed to fetch staff history');
         } finally {
             setLoading(false);
@@ -196,7 +196,7 @@ const MyShop = () => {
             await axios.post(`${API_URL}/myshop-mgmt/staff`, data);
             toggleModal();
             fetchData();
-        } catch (err) {
+        } catch (error) {
             setError('Failed to create staff');
         }
     };
@@ -209,7 +209,7 @@ const MyShop = () => {
             await axios.post(`${API_URL}/myshop-mgmt/owner`, data);
             toggleModal();
             fetchData();
-        } catch (err) {
+        } catch (error) {
             setError('Failed to create owner');
         }
     };
@@ -222,7 +222,7 @@ const MyShop = () => {
             await axios.post(`${API_URL}/myshop-mgmt/property`, data);
             toggleModal();
             fetchData();
-        } catch (err) {
+        } catch (error) {
             setError('Failed to create property');
         }
     };
@@ -235,7 +235,7 @@ const MyShop = () => {
             await axios.post(`${API_URL}/myshop-mgmt/transactions`, data);
             toggleModal();
             fetchData();
-        } catch (err) {
+        } catch (error) {
             setError('Failed to create transaction');
         }
     };
@@ -244,12 +244,54 @@ const MyShop = () => {
         const totalTransactions = transactions.reduce((acc, curr) => acc + curr.amount, 0);
         return (
             <div className="myshop-summary">
-                <Row>
-                    <Col md="4">
-                        <Card className="mb-4 shadow-sm border-0 bg-primary text-white">
-                            <CardBody>
-                                <CardTitle tag="h5">Total Expenses</CardTitle>
-                                <h2 className="mb-0">৳{totalTransactions.toLocaleString()}</h2>
+                <Row className="mb-4">
+                    <Col md="12">
+                        <Card className="mb-3 border-0 shadow overflow-hidden"
+                            style={{
+                                background: 'linear-gradient(135deg, #fff5f5 0%, #ffe3e3 100%)',
+                                borderRadius: '16px',
+                                position: 'relative'
+                            }}
+                        >
+                            {/* Decorative Neon Glows */}
+                            <div style={{
+                                position: 'absolute',
+                                top: '-30px',
+                                right: '-30px',
+                                width: '120px',
+                                height: '120px',
+                                background: 'rgba(239, 68, 68, 0.15)',
+                                filter: 'blur(50px)',
+                                borderRadius: '50%'
+                            }}></div>
+                            <div style={{
+                                position: 'absolute',
+                                bottom: '-20px',
+                                left: '-20px',
+                                width: '100px',
+                                height: '100px',
+                                background: 'rgba(244, 63, 94, 0.1)',
+                                filter: 'blur(40px)',
+                                borderRadius: '50%'
+                            }}></div>
+
+                            <CardBody className="text-center p-5">
+                                <h6 className="text-uppercase mb-2" style={{
+                                    letterSpacing: '2.5px',
+                                    fontWeight: '800',
+                                    color: '#64748b',
+                                    fontSize: '11px',
+                                    textShadow: '0 0 10px rgba(255, 255, 255, 0.8)'
+                                }}>Total Expenses</h6>
+                                <h1 className="mb-1 font-weight-bold" style={{
+                                    color: '#1e293b',
+                                    fontSize: '3.5rem',
+                                    letterSpacing: '-1px',
+                                    textShadow: '0 4px 12px rgba(239, 68, 68, 0.1)'
+                                }}>
+                                    <span style={{ fontSize: '1.5rem', color: '#ef4444', verticalAlign: 'middle', marginRight: '8px', fontWeight: '500' }}>৳</span>
+                                    {totalTransactions.toLocaleString()}
+                                </h1>
                             </CardBody>
                         </Card>
                     </Col>
@@ -291,49 +333,80 @@ const MyShop = () => {
     };
 
     return (
-        <div className="myshop-container p-4">
-            <div className="d-flex justify-content-between align-items-center mb-4">
+        <div className="myshop-container">
+            {/* <div className="d-flex justify-content-between align-items-center mb-4">
                 <h1 className="h3 mb-0 text-gray-800">MyShop Management</h1>
-            </div>
+            </div> */}
 
-            <Nav tabs className="mb-4 border-0">
-                <NavItem>
-                    <NavLink
-                        className={classnames({ active: activeTab === 'summary' }, 'border-0')}
-                        onClick={() => toggleTab('summary')}
-                        style={{ cursor: 'pointer' }}
-                    >
-                        Summary
-                    </NavLink>
-                </NavItem>
-                <NavItem>
-                    <NavLink
-                        className={classnames({ active: activeTab === 'staff' }, 'border-0')}
-                        onClick={() => toggleTab('staff')}
-                        style={{ cursor: 'pointer' }}
-                    >
-                        Staff
-                    </NavLink>
-                </NavItem>
-                <NavItem>
-                    <NavLink
-                        className={classnames({ active: activeTab === 'owners' }, 'border-0')}
-                        onClick={() => toggleTab('owners')}
-                        style={{ cursor: 'pointer' }}
-                    >
-                        Owners
-                    </NavLink>
-                </NavItem>
-                <NavItem>
-                    <NavLink
-                        className={classnames({ active: activeTab === 'properties' }, 'border-0')}
-                        onClick={() => toggleTab('properties')}
-                        style={{ cursor: 'pointer' }}
-                    >
-                        Shops & Godowns
-                    </NavLink>
-                </NavItem>
-            </Nav>
+            <div className="d-flex align-items-center mb-4 p-2 bg-white shadow-sm" style={{ borderRadius: '12px', gap: '10px' }}>
+                <div
+                    className="d-flex align-items-center px-4 py-2"
+                    style={{
+                        background: activeTab === 'summary' ? '#06b6d4' : 'transparent',
+                        color: activeTab === 'summary' ? '#000' : '#64748b',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontWeight: activeTab === 'summary' ? 'bold' : '500',
+                        fontSize: '14px',
+                        boxShadow: activeTab === 'summary' ? '0 4px 6px rgba(6, 182, 212, 0.2)' : 'none',
+                        transition: 'all 0.2s'
+                    }}
+                    onClick={() => toggleTab('summary')}
+                >
+                    <i className="fa fa-th-large mr-2"></i> Summary
+                </div>
+
+                <div
+                    className="d-flex align-items-center px-4 py-2"
+                    style={{
+                        background: activeTab === 'staff' ? '#06b6d4' : 'transparent',
+                        color: activeTab === 'staff' ? '#000' : '#64748b',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontWeight: activeTab === 'staff' ? 'bold' : '500',
+                        fontSize: '14px',
+                        boxShadow: activeTab === 'staff' ? '0 4px 6px rgba(6, 182, 212, 0.2)' : 'none',
+                        transition: 'all 0.2s'
+                    }}
+                    onClick={() => toggleTab('staff')}
+                >
+                    <i className="fa fa-users mr-2"></i> Staff
+                </div>
+
+                <div
+                    className="d-flex align-items-center px-4 py-2"
+                    style={{
+                        background: activeTab === 'owners' ? '#06b6d4' : 'transparent',
+                        color: activeTab === 'owners' ? '#000' : '#64748b',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontWeight: activeTab === 'owners' ? 'bold' : '500',
+                        fontSize: '14px',
+                        boxShadow: activeTab === 'owners' ? '0 4px 6px rgba(6, 182, 212, 0.2)' : 'none',
+                        transition: 'all 0.2s'
+                    }}
+                    onClick={() => toggleTab('owners')}
+                >
+                    <i className="fa fa-id-card mr-2"></i> Owners
+                </div>
+
+                <div
+                    className="d-flex align-items-center px-4 py-2"
+                    style={{
+                        background: activeTab === 'properties' ? '#06b6d4' : 'transparent',
+                        color: activeTab === 'properties' ? '#000' : '#64748b',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontWeight: activeTab === 'properties' ? 'bold' : '500',
+                        fontSize: '14px',
+                        boxShadow: activeTab === 'properties' ? '0 4px 6px rgba(6, 182, 212, 0.2)' : 'none',
+                        transition: 'all 0.2s'
+                    }}
+                    onClick={() => toggleTab('properties')}
+                >
+                    <i className="fa fa-building mr-2"></i> Shops & Godowns
+                </div>
+            </div>
 
             {error && <Alert color="danger">{error}</Alert>}
 

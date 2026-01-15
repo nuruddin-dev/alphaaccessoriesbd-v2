@@ -1,5 +1,8 @@
 import React from 'react';
+import { connect } from 'react-redux';
+import { success, error, warning } from 'react-notification-system-redux';
 import axios from 'axios';
+import actions from '../../actions';
 import { API_URL } from '../../constants';
 import './Investor.css';
 
@@ -26,7 +29,7 @@ class InvestorList extends React.Component {
             const response = await axios.get(`${API_URL}/investor`);
             this.setState({ investors: response.data.investors, isLoading: false });
         } catch (error) {
-            console.error('Error fetching investors:', error);
+            console.error('Error fetching investors:', err);
             this.setState({ isLoading: false });
         }
     };
@@ -38,15 +41,21 @@ class InvestorList extends React.Component {
     };
 
     handleAddInvestor = async () => {
+        const { newInvestor } = this.state;
+        if (!newInvestor.name) {
+            return this.props.warning({ title: 'Investor name is required', position: 'tr', autoDismiss: 3 });
+        }
+
         try {
-            await axios.post(`${API_URL}/investor/add`, this.state.newInvestor);
+            await axios.post(`${API_URL}/investor/add`, newInvestor);
+            this.props.success({ title: 'Investor added successfully!', position: 'tr', autoDismiss: 3 });
             this.setState({
                 isAddModalOpen: false,
                 newInvestor: { name: '', phoneNumber: '', email: '', defaultProfitShare: 50, notes: '' }
             });
             this.fetchInvestors();
         } catch (error) {
-            alert('Error adding investor');
+            this.props.error({ title: 'Error adding investor', position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -55,13 +64,32 @@ class InvestorList extends React.Component {
 
         return (
             <div className="investor-container">
-                <div className="investor-header">
-                    <div className="investor-header__title">
-                        <h1>Investor Management</h1>
-                        <p>Track investment capital and profit splitting</p>
+                <div className="d-flex justify-content-between align-items-center" style={{ background: '#fff', padding: '12px 20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '15px' }}>
+                    <div className="d-flex align-items-center">
+                        <div style={{
+                            width: '4px',
+                            height: '24px',
+                            background: '#06b6d4',
+                            borderRadius: '2px',
+                            marginRight: '12px'
+                        }}></div>
+                        <h2 className="mb-0" style={{
+                            fontWeight: '700',
+                            color: '#1e293b',
+                            fontSize: '20px',
+                            letterSpacing: '-0.5px'
+                        }}>
+                            Investors
+                        </h2>
+                        <span className="text-muted small ml-3 d-none d-md-block" style={{ borderLeft: '1px solid #e2e8f0', paddingLeft: '15px' }}>
+                            Track investment capital and profit splitting
+                        </span>
                     </div>
-                    <button className="btn-neon btn-neon--cyan" onClick={() => this.setState({ isAddModalOpen: true })}>
-                        <i className="fa fa-plus"></i> Add New Investor
+                    <button
+                        className="btn-neon btn-neon--cyan"
+                        onClick={() => this.setState({ isAddModalOpen: true })}
+                    >
+                        <i className="fa fa-plus-circle"></i> Add New Investor
                     </button>
                 </div>
 
@@ -143,4 +171,16 @@ class InvestorList extends React.Component {
     }
 }
 
-export default InvestorList;
+const mapStateToProps = state => ({
+    user: state.account.user
+});
+
+const mapDispatchToProps = dispatch => ({
+    ...actions(dispatch),
+    success: opts => dispatch(success(opts)),
+    error: opts => dispatch(error(opts)),
+    warning: opts => dispatch(warning(opts)),
+    dispatch
+});
+
+export default connect(mapStateToProps, mapDispatchToProps)(InvestorList);

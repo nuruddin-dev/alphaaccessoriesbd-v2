@@ -7,6 +7,7 @@
 import { push } from 'connected-react-router';
 import axios from 'axios';
 
+import { success } from 'react-notification-system-redux';
 import {
   FETCH_ORDERS,
   CLEAR_ORDERS,
@@ -57,6 +58,12 @@ export const deleteOrderNow = orderId => {
     try {
       await axios.delete(`${API_URL}/orderNow/cancel/${orderId}`);
       dispatch(fetchOrderNows()); // Refresh the order list
+      dispatch(success({
+        title: 'Success',
+        message: 'Order deleted successfully!',
+        position: 'tr',
+        autoDismiss: 3
+      }));
     } catch (error) {
       handleError(error, dispatch);
     }
@@ -74,16 +81,17 @@ export const updateOrderStatus = (orderId, newStatus) => {
           newStatus: newStatus
         }
       );
-      dispatch(updateOrderNowStatus({ newStatus }));
+      dispatch(updateOrderNowStatus({ orderId, status: newStatus }));
       dispatch(fetchOrderNows()); // Refresh the order list
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: 'Success',
+        message: response.data && response.data.message ? response.data.message : `Order status updated to ${newStatus}`,
         position: 'tr',
-        autoDismiss: 1
+        autoDismiss: 3
       };
 
-      // dispatch(success(successfulOptions));
+      dispatch(success(successfulOptions));
     } catch (error) {
       handleError(error, dispatch);
     }
@@ -108,12 +116,13 @@ export const updateOrderNote = (orderId, note) => {
       dispatch(fetchOrderNows()); // Refresh the order list
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: 'Success',
+        message: response.data && response.data.message ? response.data.message : 'Order note updated successfully!',
         position: 'tr',
-        autoDismiss: 1
+        autoDismiss: 3
       };
 
-      // dispatch(success(successfulOptions)); // Optionally show a success message
+      dispatch(success(successfulOptions)); // Optionally show a success message
     } catch (error) {
       handleError(error, dispatch);
     }

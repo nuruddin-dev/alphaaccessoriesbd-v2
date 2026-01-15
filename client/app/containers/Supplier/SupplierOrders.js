@@ -1,12 +1,11 @@
-/**
- * Supplier Orders Page - Light Neon Theme
- * Displays orders grouped by shipment status: Pending, Shipped, Received
- */
-
 import React from 'react';
+import { connect } from 'react-redux';
+import { success, error, warning } from 'react-notification-system-redux';
+import actions from '../../actions';
 import axios from 'axios';
 import { API_URL } from '../../constants';
 import './SupplierOrders.css';
+import '../Courier/Steadfast.css';
 
 class SupplierOrders extends React.Component {
     state = {
@@ -135,7 +134,7 @@ class SupplierOrders extends React.Component {
 
     handleCreateCargo = async () => {
         const { newCargo } = this.state;
-        if (!newCargo.name) return alert('Cargo name is required');
+        if (!newCargo.name) return this.props.warning({ title: 'Cargo name is required', position: 'tr', autoDismiss: 3 });
 
         try {
             this.setState({ isSubmitting: true });
@@ -157,7 +156,7 @@ class SupplierOrders extends React.Component {
             }));
         } catch (error) {
             this.setState({ isSubmitting: false });
-            alert('Error creating cargo: ' + (error.response?.data?.error || error.message));
+            this.props.error({ title: 'Error creating cargo: ' + (error.response?.data?.error || error.message), position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -254,7 +253,7 @@ class SupplierOrders extends React.Component {
             await axios.post(`${API_URL}/import/${importId}/shipment/create-pending`);
             this.fetchImports(this.props.match.params.id);
         } catch (error) {
-            alert('Error creating shipment: ' + (error.response?.data?.error || error.message));
+            this.props.error({ title: 'Error creating shipment: ' + (error.response?.data?.error || err.message), position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -272,9 +271,9 @@ class SupplierOrders extends React.Component {
         const { selectedImportId, selectedShipment, newItem, isSubmitting } = this.state;
         if (isSubmitting) return;
 
-        const error = this.validateItemFields(newItem);
-        if (error) {
-            alert(error);
+        const err = this.validateItemFields(newItem);
+        if (err) {
+            this.props.warning({ title: err, position: 'tr', autoDismiss: 5 });
             return;
         }
 
@@ -296,7 +295,7 @@ class SupplierOrders extends React.Component {
             this.closeModals();
             this.fetchImports(this.props.match.params.id);
         } catch (error) {
-            alert('Error adding item: ' + (error.response?.data?.error || error.message));
+            this.props.error({ title: 'Error adding item: ' + (error.response?.data?.error || err.message), position: 'tr', autoDismiss: 5 });
         } finally {
             this.setState({ isSubmitting: false });
         }
@@ -305,9 +304,9 @@ class SupplierOrders extends React.Component {
     // Edit item in shipment
     handleEditItem = async () => {
         const { selectedImportId, selectedShipment, newItem } = this.state;
-        const error = this.validateItemFields(newItem);
-        if (error) {
-            alert(error);
+        const err = this.validateItemFields(newItem);
+        if (err) {
+            this.props.warning({ title: err, position: 'tr', autoDismiss: 5 });
             return;
         }
 
@@ -328,7 +327,7 @@ class SupplierOrders extends React.Component {
             this.closeModals();
             setTimeout(() => this.fetchImports(this.props.match.params.id), 500);
         } catch (error) {
-            alert('Error updating item: ' + (error.response?.data?.error || error.message));
+            this.props.error({ title: 'Error updating item: ' + (error.response?.data?.error || err.message), position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -342,8 +341,8 @@ class SupplierOrders extends React.Component {
             await axios.delete(`${API_URL}/import/${importId}/shipment/${sidStr}/item/${itemId}`);
             setTimeout(() => this.fetchImports(this.props.match.params.id), 500);
         } catch (error) {
-            console.error('Delete item error:', error);
-            alert('Error deleting item: ' + (error.response?.data?.error || error.message));
+            console.error('Delete item error:', err);
+            this.props.error({ title: 'Error deleting item: ' + (error.response?.data?.error || err.message), position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -383,8 +382,8 @@ class SupplierOrders extends React.Component {
             this.closeModals();
             setTimeout(() => this.fetchImports(this.props.match.params.id), 800);
         } catch (error) {
-            console.error('Move item error:', error);
-            alert('Error: ' + (error.response?.data?.error || error.message));
+            console.error('Move item error:', err);
+            this.props.error({ title: 'Error: ' + (error.response?.data?.error || err.message), position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -410,8 +409,8 @@ class SupplierOrders extends React.Component {
             await axios.put(`${API_URL}/import/${importId}/shipment/${sidStr}/mark-shipped`);
             setTimeout(() => this.fetchImports(this.props.match.params.id), 800);
         } catch (error) {
-            console.error('Ship all error:', error);
-            alert('Error: ' + (error.response?.data?.error || error.message));
+            console.error('Ship all error:', err);
+            this.props.error({ title: 'Error: ' + (error.response?.data?.error || err.message), position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -469,7 +468,7 @@ class SupplierOrders extends React.Component {
             setTimeout(() => this.fetchImports(this.props.match.params.id), 500);
         } catch (error) {
             this.setState({ isSubmitting: false });
-            alert('Error: ' + (error.response?.data?.error || error.message));
+            this.props.error({ title: 'Error: ' + (error.response?.data?.error || err.message), position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -479,8 +478,8 @@ class SupplierOrders extends React.Component {
             await axios.post(`${API_URL}/import/${importId}/shipment/${sidStr}/undo-complete`);
             setTimeout(() => this.fetchImports(this.props.match.params.id), 500);
         } catch (error) {
-            console.error('Error reopening shipment:', error);
-            alert('Error reopening shipment: ' + (error.response?.data?.error || error.message));
+            console.error('Error reopening shipment:', err);
+            this.props.error({ title: 'Error reopening shipment: ' + (error.response?.data?.error || err.message), position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -494,8 +493,8 @@ class SupplierOrders extends React.Component {
             this.setState({ showRevertButton: null });
             setTimeout(() => this.fetchImports(this.props.match.params.id), 500);
         } catch (error) {
-            console.error('Error reverting shipment:', error);
-            alert('Error reverting shipment: ' + (error.response?.data?.error || error.message));
+            console.error('Error reverting shipment:', err);
+            this.props.error({ title: 'Error reverting shipment: ' + (error.response?.data?.error || err.message), position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -514,7 +513,7 @@ class SupplierOrders extends React.Component {
             await axios.post(`${API_URL}/import/${importId}/shipment/${shipmentId}/item/${itemId}/undo-shipped`);
             setTimeout(() => this.fetchImports(this.props.match.params.id), 800);
         } catch (error) {
-            alert('Error: ' + (error.response?.data?.error || error.message));
+            this.props.error({ title: 'Error: ' + (error.response?.data?.error || err.message), position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -530,8 +529,8 @@ class SupplierOrders extends React.Component {
             });
             setTimeout(() => this.fetchImports(this.props.match.params.id), 1000);
         } catch (error) {
-            console.error('Receive error:', error);
-            alert('Error: ' + (error.response?.data?.error || error.message));
+            console.error('Receive error:', err);
+            this.props.error({ title: 'Error: ' + (error.response?.data?.error || err.message), position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -542,7 +541,7 @@ class SupplierOrders extends React.Component {
             this.setState({ editingReceivedDate: null });
             setTimeout(() => this.fetchImports(this.props.match.params.id), 500);
         } catch (error) {
-            alert('Error: ' + (error.response?.data?.error || error.message));
+            this.props.error({ title: 'Error: ' + (error.response?.data?.error || err.message), position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -553,7 +552,7 @@ class SupplierOrders extends React.Component {
             this.setState({ editingShippedDate: null });
             setTimeout(() => this.fetchImports(this.props.match.params.id), 500);
         } catch (error) {
-            alert('Error: ' + (error.response?.data?.error || error.message));
+            this.props.error({ title: 'Error: ' + (error.response?.data?.error || err.message), position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -566,7 +565,7 @@ class SupplierOrders extends React.Component {
             await axios.delete(`${API_URL}/import/${importId}/shipment/${shipmentId}`);
             setTimeout(() => this.fetchImports(this.props.match.params.id), 500);
         } catch (error) {
-            alert('Error: ' + (error.response?.data?.error || error.message));
+            this.props.error({ title: 'Error: ' + (error.response?.data?.error || err.message), position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -758,10 +757,10 @@ class SupplierOrders extends React.Component {
                     productSearch: newProduct.shortName || newProduct.name,
                     isProductDropdownOpen: false
                 }));
-                alert('Product created and selected!');
+                this.props.success({ title: 'Product created and selected!', position: 'tr', autoDismiss: 3 });
             }
         } catch (error) {
-            alert('Error creating product: ' + (error.response?.data?.error || error.message));
+            this.props.error({ title: 'Error creating product: ' + (error.response?.data?.error || err.message), position: 'tr', autoDismiss: 5 });
         } finally {
             this.setState({ isSubmitting: false });
         }
@@ -788,7 +787,7 @@ class SupplierOrders extends React.Component {
                 this.fetchImports(supplier._id);
             }
         } catch (error) {
-            alert('Error creating order: ' + (error.response?.data?.error || error.message));
+            this.props.error({ title: 'Error creating order: ' + (error.response?.data?.error || err.message), position: 'tr', autoDismiss: 5 });
         } finally {
             this.setState({ isSubmitting: false });
         }
@@ -864,11 +863,7 @@ class SupplierOrders extends React.Component {
                                 {isReceived && 'Received: '}
                                 {new Date(isReceived ? shipment.receivedDate : (shipment.shipmentDate || shipment.created)).toLocaleDateString()}
 
-                                {shipment.cargo && (
-                                    <span className="shipment-card__cargo" style={{ marginLeft: '12px', padding: '2px 8px', background: 'rgba(6, 182, 212, 0.1)', color: '#06b6d4', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
-                                        <i className="fa fa-truck"></i> {shipment.cargo.name}
-                                    </span>
-                                )}
+
 
                                 {/* Shipped date edit */}
                                 {isShipped && this.state.editingShippedDate === sid && (
@@ -908,6 +903,12 @@ class SupplierOrders extends React.Component {
                                     >
                                         <i className="fa fa-pencil"></i>
                                     </button>
+                                )}
+
+                                {shipment.cargo && (
+                                    <span className="shipment-card__cargo" style={{ marginLeft: '12px', padding: '2px 8px', background: 'rgba(6, 182, 212, 0.1)', color: '#06b6d4', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
+                                        <i className="fa fa-truck"></i> {shipment.cargo.name}
+                                    </span>
                                 )}
                             </div>
                         </div>
@@ -1607,46 +1608,81 @@ class SupplierOrders extends React.Component {
         const receivedShipments = this.getShipmentsByStatus('Received');
 
         return (
-            <div className="supplier-orders">
-                <div className="supplier-orders__header">
-                    <div className="supplier-orders__title">
+            <div className="supplier-orders" style={{ padding: '0 24px 24px 24px', backgroundColor: '#f3f4f6', minHeight: 'calc(100vh - 80px)' }}>
+                <div className="courier-selection-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', padding: '10px 20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '20px' }}>
+                    <div className="d-flex align-items-center">
+                        <button className="nav-tab mr-3" onClick={() => this.props.history.push('/dashboard/import')}>
+                            <i className="fa fa-arrow-left"></i> Back
+                        </button>
+                        <div style={{
+                            width: '4px',
+                            height: '24px',
+                            background: '#06b6d4',
+                            borderRadius: '2px',
+                            marginRight: '12px'
+                        }}></div>
                         <div>
-                            <h1 className="supplier-orders__supplier-name">
+                            <h2 className="mb-0" style={{
+                                fontWeight: '700',
+                                color: '#1e293b',
+                                fontSize: '18px',
+                                letterSpacing: '-0.5px'
+                            }}>
                                 {supplier ? supplier.name : 'Loading...'}
-                            </h1>
+                            </h2>
                             {supplier && (
-                                <div className="supplier-orders__supplier-info">
-                                    {supplier.phoneNumber && <span>{supplier.phoneNumber}</span>}
-                                    {supplier.phoneNumber && supplier.address && <span> • </span>}
-                                    {supplier.address && <span>{supplier.address}</span>}
-                                </div>
+                                <small className="text-muted font-weight-bold" style={{ fontSize: '11px', marginTop: '-2px', display: 'block' }}>
+                                    {supplier.phoneNumber} {supplier.address && `• ${supplier.address}`}
+                                </small>
                             )}
                         </div>
                     </div>
-                    <div className="supplier-orders__tabs supplier-orders__tabs--header">
+
+                    <div className="nav-shortcuts d-flex flex-wrap" style={{ gap: '8px' }}>
                         <button
-                            className={`supplier-orders__tab supplier-orders__tab--current ${activeTab === 'pending' ? 'active' : ''}`}
+                            className={`nav-tab ${activeTab === 'pending' ? 'active' : ''}`}
                             onClick={() => this.setState({ activeTab: 'pending' })}
                         >
-                            <i className="fa fa-clock-o"></i>
-                            Current Orders
-                            <span className="supplier-orders__tab-count">{pendingShipments.length}</span>
+                            <i className="fa fa-clock-o"></i> Current Orders
+                            <span style={{
+                                marginLeft: '8px',
+                                background: activeTab === 'pending' ? 'rgba(0,0,0,0.2)' : 'rgba(6, 182, 212, 0.1)',
+                                color: activeTab === 'pending' ? '#fff' : '#06b6d4',
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                fontSize: '11px',
+                                fontWeight: 'bold'
+                            }}>{pendingShipments.length}</span>
                         </button>
                         <button
-                            className={`supplier-orders__tab supplier-orders__tab--shipped ${activeTab === 'shipped' ? 'active' : ''}`}
+                            className={`nav-tab ${activeTab === 'shipped' ? 'active' : ''}`}
                             onClick={() => this.setState({ activeTab: 'shipped' })}
                         >
-                            <i className="fa fa-ship"></i>
-                            On The Way
-                            <span className="supplier-orders__tab-count">{shippedShipments.length}</span>
+                            <i className="fa fa-ship"></i> On The Way
+                            <span style={{
+                                marginLeft: '8px',
+                                background: activeTab === 'shipped' ? 'rgba(0,0,0,0.2)' : 'rgba(6, 182, 212, 0.1)',
+                                color: activeTab === 'shipped' ? '#fff' : '#06b6d4',
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                fontSize: '11px',
+                                fontWeight: 'bold'
+                            }}>{shippedShipments.length}</span>
                         </button>
                         <button
-                            className={`supplier-orders__tab supplier-orders__tab--received ${activeTab === 'received' ? 'active' : ''}`}
+                            className={`nav-tab ${activeTab === 'received' ? 'active' : ''}`}
                             onClick={() => this.setState({ activeTab: 'received' })}
                         >
-                            <i className="fa fa-check-circle"></i>
-                            Previous Orders
-                            <span className="supplier-orders__tab-count">{receivedShipments.length}</span>
+                            <i className="fa fa-check-circle"></i> Previous Orders
+                            <span style={{
+                                marginLeft: '8px',
+                                background: activeTab === 'received' ? 'rgba(0,0,0,0.2)' : 'rgba(6, 182, 212, 0.1)',
+                                color: activeTab === 'received' ? '#fff' : '#06b6d4',
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                fontSize: '11px',
+                                fontWeight: 'bold'
+                            }}>{receivedShipments.length}</span>
                         </button>
                     </div>
                 </div>
@@ -1718,4 +1754,16 @@ class SupplierOrders extends React.Component {
     }
 }
 
-export default SupplierOrders;
+const mapStateToProps = state => ({
+    user: state.account.user
+});
+
+const mapDispatchToProps = dispatch => ({
+    ...actions(dispatch),
+    success: opts => dispatch(success(opts)),
+    error: opts => dispatch(error(opts)),
+    warning: opts => dispatch(warning(opts)),
+    dispatch
+});
+
+export default connect(mapStateToProps, mapDispatchToProps)(SupplierOrders);

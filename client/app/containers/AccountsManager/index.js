@@ -1,4 +1,7 @@
 import React from 'react';
+import { connect } from 'react-redux';
+import { success, error, warning } from 'react-notification-system-redux';
+import actions from '../../actions';
 import axios from 'axios';
 import { Row, Col, Card, CardBody, Button, Table, Modal, ModalHeader, ModalBody, ModalFooter, Input, Label, FormGroup } from 'reactstrap';
 import { API_URL } from '../../constants';
@@ -86,11 +89,32 @@ class AccountsManager extends React.PureComponent {
     fetchAccounts = async () => {
         try {
             const response = await axios.get(`${API_URL}/account`);
-            this.setState({ accounts: response.data.accounts });
+            let accounts = response.data.accounts || [];
+
+            // Sorting logic: Cash > all Bank > all mobile banking. Secondary sort by name.
+            const getPriority = (type) => {
+                const t = type.toLowerCase();
+                if (t === 'cash') return 0;
+                if (t === 'bank') return 1;
+                if (t === 'mobile' || t === 'bkash' || t === 'nagad' || t === 'rocket') return 2;
+                return 3;
+            };
+
+            accounts.sort((a, b) => {
+                const priorityA = getPriority(a.type);
+                const priorityB = getPriority(b.type);
+                if (priorityA !== priorityB) {
+                    return priorityA - priorityB;
+                }
+                return a.name.localeCompare(b.name);
+            });
+
+            this.setState({ accounts });
+
             // Set default account for transaction
-            if (response.data.accounts.length > 0 && !this.state.newTransaction.account) {
+            if (accounts.length > 0 && !this.state.newTransaction.account) {
                 this.setState(prevState => ({
-                    newTransaction: { ...prevState.newTransaction, account: response.data.accounts[0]._id }
+                    newTransaction: { ...prevState.newTransaction, account: accounts[0]._id }
                 }));
             }
         } catch (error) {
@@ -150,6 +174,18 @@ class AccountsManager extends React.PureComponent {
         this.setState({ activityDate: e.target.value });
     };
 
+    handleDateStep = (step) => {
+        const { activityDate } = this.state;
+        const [year, month, day] = activityDate.split('-').map(Number);
+        const date = new Date(year, month - 1, day);
+        date.setDate(date.getDate() + step);
+        const nextYear = date.getFullYear();
+        const nextMonth = String(date.getMonth() + 1).padStart(2, '0');
+        const nextDay = String(date.getDate()).padStart(2, '0');
+        const nextDate = `${nextYear}-${nextMonth}-${nextDay}`;
+        this.setState({ activityDate: nextDate });
+    };
+
     handleAddAccountChange = (e) => {
         const { name, value } = e.target;
         this.setState(prevState => ({
@@ -170,6 +206,7 @@ class AccountsManager extends React.PureComponent {
             try {
                 const response = await axios.post(`${API_URL}/account/expense-category/add`, { name: newCategory });
                 if (response.data.success) {
+                    this.props.success({ title: 'Category added successfully!', position: 'tr', autoDismiss: 3 });
                     this.setState(prevState => {
                         const updatedCategories = [...prevState.spendingCategories, newCategory];
                         localStorage.setItem('spendingCategories', JSON.stringify(updatedCategories));
@@ -180,7 +217,7 @@ class AccountsManager extends React.PureComponent {
                     });
                 }
             } catch (error) {
-                alert('Error adding category: ' + (error.response?.data?.error || error.message));
+                this.props.error({ title: 'Error adding category: ' + (error.response?.data?.error || err.message), position: 'tr', autoDismiss: 5 });
             }
         }
     };
@@ -188,12 +225,13 @@ class AccountsManager extends React.PureComponent {
     submitAddAccount = async () => {
         try {
             await axios.post(`${API_URL}/account/add`, this.state.newAccount);
+            this.props.success({ title: 'Account added successfully!', position: 'tr', autoDismiss: 3 });
             this.fetchAccounts();
             this.toggleAddAccountModal();
             this.setState({ newAccount: { name: '', type: 'bank', details: '', openingBalance: 0 } });
         } catch (error) {
-            //   alert('Error adding account: ' + (error.response?.data?.error || error.message));
-            console.error(error);
+            this.props.error({ title: 'Error adding account: ' + (error.response?.data?.error || err.message), position: 'tr', autoDismiss: 5 });
+            console.error(err);
         }
     };
 
@@ -201,15 +239,15 @@ class AccountsManager extends React.PureComponent {
         try {
             const { account, amount, description, type, category } = this.state.newTransaction;
             if (!account || !amount) {
-                alert("Please select an account and enter an amount");
+                this.props.warning({ title: "Please select an account and enter an amount", position: 'tr', autoDismiss: 3 });
                 return;
             }
             if (type === 'transfer' && !this.state.newTransaction.toAccount) {
-                alert("Please select a destination account for transfer");
+                this.props.warning({ title: "Please select a destination account for transfer", position: 'tr', autoDismiss: 3 });
                 return;
             }
             if (type === 'transfer' && account === this.state.newTransaction.toAccount) {
-                alert("Source and destination accounts cannot be the same");
+                this.props.warning({ title: "Source and destination accounts cannot be the same", position: 'tr', autoDismiss: 3 });
                 return;
             }
             await axios.post(`${API_URL}/account/transaction/add`, {
@@ -221,6 +259,7 @@ class AccountsManager extends React.PureComponent {
                 toAccount: this.state.newTransaction.toAccount,
                 transferFee: this.state.newTransaction.transferFee
             });
+            this.props.success({ title: 'Transaction added successfully!', position: 'tr', autoDismiss: 3 });
             this.fetchAccounts();
             this.fetchTransactions();
             this.toggleAddTransactionModal();
@@ -228,8 +267,8 @@ class AccountsManager extends React.PureComponent {
                 newTransaction: { ...prevState.newTransaction, amount: '', description: '', category: '', toAccount: '', transferFee: '' }
             }));
         } catch (error) {
-            alert('Error adding transaction: ' + (error.response?.data?.error || error.message));
-            console.error(error);
+            this.props.error({ title: 'Error adding transaction: ' + (error.response?.data?.error || err.message), position: 'tr', autoDismiss: 5 });
+            console.error(err);
         }
     };
 
@@ -238,6 +277,7 @@ class AccountsManager extends React.PureComponent {
             try {
                 const response = await axios.put(`${API_URL}/account/transaction/undo/${id}`);
                 if (response.data.success) {
+                    this.props.success({ title: 'Transaction reverted successfully!', position: 'tr', autoDismiss: 3 });
                     this.fetchAccounts();
                     this.fetchTransactions();
                     if (this.state.selectedAccount) {
@@ -247,7 +287,7 @@ class AccountsManager extends React.PureComponent {
                     }
                 }
             } catch (error) {
-                alert('Error undoing transaction: ' + (error.response?.data?.error || error.message));
+                this.props.error({ title: 'Error undoing transaction: ' + (error.response?.data?.error || error.message), position: 'tr', autoDismiss: 5 });
                 console.error(error);
             }
         }
@@ -416,19 +456,45 @@ class AccountsManager extends React.PureComponent {
                         }
                     }
                 `}</style>
-                <div className="d-flex justify-content-between align-items-center mb-4">
-                    <h3>Financial Dashboard</h3>
-                    <div>
-                        <Button color="primary" className="mr-2" onClick={this.toggleAddAccountModal}>Add Account</Button>
-                        <Button color="success" className="mr-2" onClick={this.toggleAddTransactionModal}>Add Transaction</Button>
-                        <Button
-                            color="info"
-                            outline
+                <div className="d-flex justify-content-between align-items-center mb-4" style={{ background: '#fff', padding: '20px 24px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                    <div className="d-flex align-items-center">
+                        <div style={{
+                            width: '4px',
+                            height: '24px',
+                            background: '#06b6d4',
+                            borderRadius: '2px',
+                            marginRight: '12px'
+                        }}></div>
+                        <h2 className="mb-0 mr-4" style={{
+                            fontWeight: '700',
+                            color: '#1e293b',
+                            fontSize: '20px',
+                            letterSpacing: '-0.5px'
+                        }}>
+                            Financial Accounts
+                        </h2>
+                    </div>
+                    <div className="d-flex align-items-center gap-2">
+                        <button
+                            className="btn-neon btn-neon--cyan btn-neon--sm mr-2"
+                            onClick={this.toggleAddAccountModal}
+                        >
+                            <i className="fa fa-plus-circle mr-1"></i> Add Account
+                        </button>
+                        <button
+                            className="btn-neon btn-neon--cyan btn-neon--sm mr-2"
+                            onClick={this.toggleAddTransactionModal}
+                        >
+                            <i className="fa fa-exchange mr-1"></i> Add Transaction
+                        </button>
+                        <button
+                            className="btn-neon btn-neon--cyan btn-neon--sm"
+                            style={{ width: '32px', height: '32px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                             onClick={this.handleRefresh}
                             disabled={this.state.isLoading}
                         >
                             <i className={`fa fa-refresh ${this.state.isLoading ? 'fa-spin' : ''}`}></i>
-                        </Button>
+                        </button>
                     </div>
                 </div>
 
@@ -851,12 +917,30 @@ class AccountsManager extends React.PureComponent {
                                 </span>
                                 <span className="font-weight-bold" style={{ fontSize: '14px' }}>Activity History</span>
                             </div>
-                            <Input
-                                type="date"
-                                value={activityDate}
-                                onChange={this.handleDateChange}
-                                style={{ width: '140px', fontSize: '12px', height: '30px', padding: '2px 8px' }}
-                            />
+                            <div className="d-flex align-items-center">
+                                <Button
+                                    color="link"
+                                    className="p-0 mr-2 text-muted"
+                                    onClick={() => this.handleDateStep(-1)}
+                                    style={{ fontSize: '12px' }}
+                                >
+                                    <i className="fa fa-chevron-left"></i>
+                                </Button>
+                                <Input
+                                    type="date"
+                                    value={activityDate}
+                                    onChange={this.handleDateChange}
+                                    style={{ width: '130px', fontSize: '12px', height: '30px', padding: '2px 8px' }}
+                                />
+                                <Button
+                                    color="link"
+                                    className="p-0 ml-2 text-muted"
+                                    onClick={() => this.handleDateStep(1)}
+                                    style={{ fontSize: '12px' }}
+                                >
+                                    <i className="fa fa-chevron-right"></i>
+                                </Button>
+                            </div>
                         </div>
 
                         <div className="flex-grow-1 overflow-auto p-0">
@@ -1033,12 +1117,28 @@ class AccountsManager extends React.PureComponent {
                                     <span className="text-muted ml-2" style={{ fontSize: '11px', textTransform: 'uppercase' }}>({selectedAccount.type})</span>
                                 </div>
                                 <div className="d-flex align-items-center">
+                                    <Button
+                                        color="link"
+                                        className="p-0 mr-2 text-muted"
+                                        onClick={() => this.handleDateStep(-1)}
+                                        style={{ fontSize: '12px' }}
+                                    >
+                                        <i className="fa fa-chevron-left"></i>
+                                    </Button>
                                     <Input
                                         type="date"
                                         value={activityDate}
                                         onChange={this.handleDateChange}
-                                        style={{ width: '140px', fontSize: '12px', height: '30px', padding: '2px 8px' }}
+                                        style={{ width: '130px', fontSize: '12px', height: '30px', padding: '2px 8px' }}
                                     />
+                                    <Button
+                                        color="link"
+                                        className="p-0 ml-2 text-muted"
+                                        onClick={() => this.handleDateStep(1)}
+                                        style={{ fontSize: '12px' }}
+                                    >
+                                        <i className="fa fa-chevron-right"></i>
+                                    </Button>
                                 </div>
                             </div>
 
@@ -1168,5 +1268,17 @@ class AccountsManager extends React.PureComponent {
     }
 }
 
-export default AccountsManager;
+const mapStateToProps = state => ({
+    user: state.account.user
+});
+
+const mapDispatchToProps = dispatch => ({
+    ...actions(dispatch),
+    success: opts => dispatch(success(opts)),
+    error: opts => dispatch(error(opts)),
+    warning: opts => dispatch(warning(opts)),
+    dispatch
+});
+
+export default connect(mapStateToProps, mapDispatchToProps)(AccountsManager);
 

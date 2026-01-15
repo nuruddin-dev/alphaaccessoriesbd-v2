@@ -37,7 +37,27 @@ class Review extends React.PureComponent {
 
     return (
       <div className='review-dashboard'>
-        <SubPage title={'Reviews'} isMenuOpen={null}>
+        <div className="d-flex align-items-center" style={{ background: '#fff', padding: '20px 24px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '20px' }}>
+          <div className="d-flex align-items-center">
+            <div style={{
+              width: '4px',
+              height: '24px',
+              background: '#06b6d4',
+              borderRadius: '2px',
+              marginRight: '12px'
+            }}></div>
+            <h2 className="mb-0" style={{
+              fontWeight: '700',
+              color: '#1e293b',
+              fontSize: '20px',
+              letterSpacing: '-0.5px'
+            }}>
+              Reviews
+            </h2>
+          </div>
+        </div>
+
+        <div className="bg-white rounded shadow-sm p-3">
           {isLoading && <LoadingIndicator />}
 
           {displayPagination && (
@@ -61,7 +81,7 @@ class Review extends React.PureComponent {
           {!isLoading && !displayReviews && (
             <NotFound message='No reviews found.' />
           )}
-        </SubPage>
+        </div>
       </div>
     );
   }

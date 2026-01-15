@@ -18,6 +18,7 @@ import AccountSecurity from '../../../containers/AccountSecurity';
 import Address from '../../../containers/Address';
 import Order from '../../../containers/Order';
 import Wishlist from '../../../containers/WishList';
+import UserDashboardSummary from './Summary/Customer';
 
 const Customer = props => {
   const { user } = props;
@@ -31,7 +32,8 @@ const Customer = props => {
         <Col xs='12' md='7' xl='9'>
           <div className='panel-body'>
             <Switch>
-              <Route exact path='/dashboard' component={Account} />
+              <Route exact path='/dashboard' render={() => <UserDashboardSummary user={user} />} />
+              <Route path='/dashboard/my-account' component={Account} />
               {!isProviderAllowed(user.provider) && (
                 <Route path='/dashboard/security' component={AccountSecurity} />
               )}

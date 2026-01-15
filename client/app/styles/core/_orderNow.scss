@@ -1,9 +1,10 @@
 .orderNow-dashboard {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 20px;
-  padding: 20px;
-  background-color: #f9f9f9;
+  padding: 24px;
+  background-color: #f3f4f6;
+  min-height: calc(100vh - 80px);
 }
 
 .loading,

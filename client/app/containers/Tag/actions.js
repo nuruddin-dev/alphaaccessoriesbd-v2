@@ -143,7 +143,7 @@ export const addTag = () => {
       const response = await axios.post(`${API_URL}/tag/add`, tag);
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };
@@ -200,7 +200,7 @@ export const updateTag = () => {
       });
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };
@@ -227,7 +227,7 @@ export const activateTag = (id, value) => {
       });
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };
@@ -251,7 +251,7 @@ export const deleteTag = id => {
       const response = await axios.delete(`${API_URL}/tag/delete/${id}`);
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };

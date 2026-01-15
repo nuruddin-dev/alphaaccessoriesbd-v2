@@ -73,50 +73,75 @@ class List extends React.PureComponent {
 
     return (
       <div className='merchant-dashboard'>
-        <SubPage
-          title={'Merchants'}
-          actionTitle={user.role === ROLES.Admin && 'Add'}
-          handleAction={() => history.push('/dashboard/merchant/add')}
-        />
-        <MerchantSearch
-          onSearch={this.handleMerchantSearch}
-          onSearchSubmit={searchMerchants}
-        />
-        {isLoading && <LoadingIndicator />}
-        {displayMerchants && (
-          <>
-            {!isSearch && displayPagination && (
-              <Pagination
-                totalPages={advancedFilters.totalPages}
-                onPagination={fetchMerchants}
+        <div className="d-flex justify-content-between align-items-center" style={{ background: '#fff', padding: '20px 24px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '20px' }}>
+          <div className="d-flex align-items-center">
+            <div style={{
+              width: '4px',
+              height: '24px',
+              background: '#06b6d4',
+              borderRadius: '2px',
+              marginRight: '12px'
+            }}></div>
+            <h2 className="mb-0" style={{
+              fontWeight: '700',
+              color: '#1e293b',
+              fontSize: '20px',
+              letterSpacing: '-0.5px'
+            }}>
+              Merchants
+            </h2>
+          </div>
+          {user.role === ROLES.Admin && (
+            <button
+              className="btn-neon btn-neon--cyan"
+              onClick={() => history.push('/dashboard/merchant/add')}
+            >
+              <i className="fa fa-plus-circle"></i> Add Merchant
+            </button>
+          )}
+        </div>
+
+        <div className="bg-white rounded shadow-sm p-3">
+          <MerchantSearch
+            onSearch={this.handleMerchantSearch}
+            onSearchSubmit={searchMerchants}
+          />
+          {isLoading && <LoadingIndicator />}
+          {displayMerchants && (
+            <>
+              {!isSearch && displayPagination && (
+                <Pagination
+                  totalPages={advancedFilters.totalPages}
+                  onPagination={fetchMerchants}
+                />
+              )}
+              <SearchResultMeta
+                label='merchants'
+                count={
+                  isSearch ? filteredMerchants.length : advancedFilters.count
+                }
               />
-            )}
-            <SearchResultMeta
-              label='merchants'
-              count={
-                isSearch ? filteredMerchants.length : advancedFilters.count
-              }
-            />
-            <MerchantList
-              merchants={filteredMerchants}
-              approveMerchant={m =>
-                approveMerchant(m, search, advancedFilters.currentPage)
-              }
-              rejectMerchant={m =>
-                rejectMerchant(m, search, advancedFilters.currentPage)
-              }
-              deleteMerchant={m =>
-                deleteMerchant(m, search, advancedFilters.currentPage)
-              }
-              disableMerchant={(m, v) =>
-                disableMerchant(m, v, search, advancedFilters.currentPage)
-              }
-            />
-          </>
-        )}
-        {!isLoading && !displayMerchants && (
-          <NotFound message='No merchants found.' />
-        )}
+              <MerchantList
+                merchants={filteredMerchants}
+                approveMerchant={m =>
+                  approveMerchant(m, search, advancedFilters.currentPage)
+                }
+                rejectMerchant={m =>
+                  rejectMerchant(m, search, advancedFilters.currentPage)
+                }
+                deleteMerchant={m =>
+                  deleteMerchant(m, search, advancedFilters.currentPage)
+                }
+                disableMerchant={(m, v) =>
+                  disableMerchant(m, v, search, advancedFilters.currentPage)
+                }
+              />
+            </>
+          )}
+          {!isLoading && !displayMerchants && (
+            <NotFound message='No merchants found.' />
+          )}
+        </div>
       </div>
     );
   }

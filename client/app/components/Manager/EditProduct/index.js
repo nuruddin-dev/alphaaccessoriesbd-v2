@@ -11,6 +11,8 @@ import 'react-quill/dist/quill.snow.css'; // Import the Quill CSS
 
 import { Link } from 'react-router-dom';
 import { Row, Col, Modal, ModalBody, ModalHeader } from 'reactstrap';
+import { useDispatch } from 'react-redux';
+import { success, error, warning } from 'react-notification-system-redux';
 
 import { ROLES } from '../../../constants';
 import Input from '../../Common/Input';
@@ -43,6 +45,7 @@ const colors = [
 ];
 
 const EditProduct = props => {
+  const dispatch = useDispatch();
   const {
     user,
     product,
@@ -179,11 +182,11 @@ const EditProduct = props => {
           };
           setLocalTags(prevTags => [...prevTags, newTagData]);
         } else {
-          alert('Failed to add the new tag. Please try again.');
+          dispatch(warning({ title: 'Failed to add the new tag. Please try again.', position: 'tr', autoDismiss: 5 }));
         }
-      } catch (error) {
-        console.error('Error adding new tag:', error);
-        alert('An error occurred while adding the tag.');
+      } catch (err) {
+        console.error('Error adding new tag:', err);
+        dispatch(error({ title: 'An error occurred while adding the tag.', position: 'tr', autoDismiss: 5 }));
       }
     }
   };

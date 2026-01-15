@@ -42,17 +42,20 @@ import React from 'react';
 import { useTable } from 'react-table';
 
 import { formatDate } from '../../../utils/date';
+import { ROLES } from '../../../constants';
 import UserRole from '../UserRole';
 
-const UserTable = ({ users }) => {
+const UserTable = ({ users, updateUserRole }) => {
   const data = React.useMemo(
     () =>
       users.map(user => ({
+        _id: user?._id,
         name: user?.firstName ? `${user?.firstName} ${user?.lastName}` : 'N/A',
         email: user?.email ?? '-',
         provider: user?.provider ?? '-',
         created: formatDate(user?.created),
-        role: user // Pass the whole user object to render the role using the UserRole component
+        role: user?.role, // Just the role string
+        user: user // Whole user for complex cells
       })),
     [users]
   );
@@ -61,15 +64,27 @@ const UserTable = ({ users }) => {
     () => [
       {
         Header: 'Name',
-        accessor: 'name'
+        accessor: 'name',
+        Cell: ({ row, value }) => (
+          <div>
+            <div style={{ fontWeight: '600', color: '#1e293b' }}>{value}</div>
+            <div style={{ fontSize: '11px', color: '#94a3b8' }}>ID: {row.original._id}</div>
+          </div>
+        )
       },
       {
         Header: 'Email',
-        accessor: 'email'
+        accessor: 'email',
+        Cell: ({ value }) => (
+          <div style={{ color: '#475569' }}>{value}</div>
+        )
       },
       {
         Header: 'Provider',
-        accessor: 'provider'
+        accessor: 'provider',
+        Cell: ({ value }) => (
+          <span className="badge badge-light" style={{ textTransform: 'capitalize' }}>{value}</span>
+        )
       },
       {
         Header: 'Account Created',
@@ -77,13 +92,35 @@ const UserTable = ({ users }) => {
       },
       {
         Header: 'Role',
-        accessor: 'role',
-        Cell: ({ value }) => (
-          <UserRole user={value} className='d-inline-block mt-2' />
-        )
+        accessor: 'user',
+        Cell: ({ value }) => {
+          const isAdmin = value.role === ROLES.Admin;
+          return (
+            <div className="d-flex align-items-center gap-2">
+              <UserRole user={value} />
+              <div className="custom-control custom-switch ml-2">
+                <input
+                  type="checkbox"
+                  className="custom-control-input"
+                  id={`roleSwitch-${value._id}`}
+                  checked={isAdmin}
+                  onChange={(e) => {
+                    const newRole = e.target.checked ? ROLES.Admin : ROLES.Member;
+                    if (window.confirm(`Are you sure you want to change ${value.firstName}'s role to ${newRole}?`)) {
+                      updateUserRole(value._id, newRole);
+                    }
+                  }}
+                />
+                <label className="custom-control-label" htmlFor={`roleSwitch-${value._id}`} style={{ cursor: 'pointer' }}>
+                  Admin
+                </label>
+              </div>
+            </div>
+          );
+        }
       }
     ],
-    []
+    [updateUserRole]
   );
 
   const { getTableProps, getTableBodyProps, headerGroups, rows, prepareRow } =
@@ -91,7 +128,41 @@ const UserTable = ({ users }) => {
 
   return (
     <div className='table-responsive'>
-      <table className='table' {...getTableProps()}>
+      <style>{`
+        .user-table {
+          width: 100%;
+          border-collapse: separate;
+          border-spacing: 0;
+        }
+        .user-table th {
+          background: #f8fafc;
+          padding: 12px 20px;
+          font-weight: 600;
+          color: #64748b;
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          border-bottom: 1px solid #e2e8f0;
+        }
+        .user-table td {
+          padding: 16px 20px;
+          border-bottom: 1px solid #f1f5f9;
+          vertical-align: middle;
+          color: #475569;
+          font-size: 14px;
+        }
+        .user-table tr:hover td {
+          background: #fdfdfd;
+        }
+        .user-table tr:last-child td {
+          border-bottom: none;
+        }
+        .custom-control-input:checked ~ .custom-control-label::before {
+          background-color: #06b6d4;
+          border-color: #06b6d4;
+        }
+      `}</style>
+      <table className='user-table' {...getTableProps()}>
         <thead>
           {headerGroups.map(headerGroup => (
             <tr {...headerGroup.getHeaderGroupProps()}>

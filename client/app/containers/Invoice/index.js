@@ -1,5 +1,6 @@
 import React from 'react';
 import { connect } from 'react-redux';
+import { success, error, warning } from 'react-notification-system-redux';
 import { API_URL, ROLES } from '../../constants';
 import actions from '../../actions'; // Import global actions
 import axios from 'axios'; // Import axios for API calls
@@ -66,7 +67,8 @@ class Invoice extends React.PureComponent {
     isShareModalOpen: false, // State for Share Modal
     sharableImage: null, // Data URL of generated image
     isGeneratingImage: false, // Track image generation status
-    isViewOnly: false // New state for view-only mode
+    isViewOnly: false, // New state for view-only mode
+    dropdownDirection: 'down' // Direction to show product suggestions (up or down)
   };
 
   // LocalStorage keys for caching
@@ -197,7 +199,26 @@ class Invoice extends React.PureComponent {
     try {
       const response = await axios.get(`${API_URL}/account`);
       if (this._isMounted) {
-        const accounts = response.data.accounts;
+        let accounts = response.data.accounts || [];
+
+        // Sorting logic: Cash > all Bank > all mobile banking. Secondary sort by name.
+        const getPriority = (type) => {
+          const t = type.toLowerCase();
+          if (t === 'cash') return 0;
+          if (t === 'bank') return 1;
+          if (t === 'mobile' || t === 'bkash' || t === 'nagad' || t === 'rocket') return 2;
+          return 3;
+        };
+
+        accounts.sort((a, b) => {
+          const priorityA = getPriority(a.type);
+          const priorityB = getPriority(b.type);
+          if (priorityA !== priorityB) {
+            return priorityA - priorityB;
+          }
+          return a.name.localeCompare(b.name);
+        });
+
         // Find default cash account
         const defaultCash = accounts.find(a => a.type === 'cash' || a.name.toLowerCase().includes('cash'));
 
@@ -363,12 +384,12 @@ class Invoice extends React.PureComponent {
         console.log('Invoice loaded successfully');
         return true;
       } else {
-        alert('Invoice not found.');
+        this.props.warning({ title: 'Invoice not found.', position: 'tr', autoDismiss: 3 });
         return false;
       }
     } catch (error) {
       console.error('Error fetching invoice:', error);
-      alert('Failed to fetch invoice. Please try again.');
+      this.props.error({ title: 'Failed to fetch invoice. Please try again.', position: 'tr', autoDismiss: 3 });
       return false;
     }
   };
@@ -381,7 +402,7 @@ class Invoice extends React.PureComponent {
       );
 
       if (filledInvoiceItems.length === 0) {
-        alert('Please add at least one product to the lending');
+        this.props.warning({ title: 'Please add at least one product to the lending', position: 'tr', autoDismiss: 3 });
         return false;
       }
 
@@ -407,12 +428,12 @@ class Invoice extends React.PureComponent {
 
       const response = await axios.post(`${API_URL}/challan/create`, payload);
       if (response.data.success) {
-        alert('Lending created and stock deducted successfully!');
+        this.props.success({ title: 'Lending created and stock deducted successfully!', position: 'tr', autoDismiss: 3 });
         return true;
       }
     } catch (error) {
       console.error('Error saving lending:', error);
-      alert(error.response?.data?.error || 'Failed to save lending.');
+      this.props.error({ title: error.response?.data?.error || 'Failed to save lending.', position: 'tr', autoDismiss: 5 });
       return false;
     }
   };
@@ -600,9 +621,9 @@ class Invoice extends React.PureComponent {
 
     const grandTotal = this.calculateFinalTotal();
 
-    // Net payment = Total Paid - Total Fee
-    // Due = Grand Total - Net Payment
-    return grandTotal - (totalPaid - totalFee);
+    // Net payment = Total Paid
+    // Due = Grand Total - Total Paid (Fees are ignored in due calculation)
+    return grandTotal - totalPaid;
   };
 
   /**
@@ -612,8 +633,10 @@ class Invoice extends React.PureComponent {
   saveInvoiceToDatabase = async () => {
     try {
       // Validate paid amount
-      if (this.state.paid === '' || this.state.paid < 0) {
-        alert('Please enter a valid paid amount. Enter 0 for full due.');
+      // Validate paid amount
+      const isMultiPay = this.state.payments.length > 0;
+      if (!isMultiPay && (this.state.paid === '' || this.state.paid < 0)) {
+        this.props.warning({ title: 'Please enter a valid paid amount. Enter 0 for full due.', position: 'tr', autoDismiss: 3 });
         return false;
       }
 
@@ -624,7 +647,7 @@ class Invoice extends React.PureComponent {
       );
 
       if (filledInvoiceItems.length === 0) {
-        alert('Please add at least one product to the invoice');
+        this.props.warning({ title: 'Please add at least one product to the invoice', position: 'tr', autoDismiss: 3 });
         return false;
       }
 
@@ -758,7 +781,7 @@ class Invoice extends React.PureComponent {
       return true;
     } catch (error) {
       console.error('Failed to save invoice:', error);
-      alert('Failed to save invoice. Please try again.');
+      this.props.error({ title: 'Failed to save invoice. Please try again.', position: 'tr', autoDismiss: 5 });
       return false;
     }
   };
@@ -813,14 +836,14 @@ class Invoice extends React.PureComponent {
           console.error('dom-to-image capture error:', error);
           if (this._isMounted) {
             this.setState({ isGeneratingImage: false });
-            alert(`Could not generate image: ${error.message} `);
+            this.props.error({ title: `Could not generate image: ${error.message}`, position: 'tr', autoDismiss: 5 });
           }
         }
       } else {
         console.error('Capture element "sharable-invoice-capture" not found in DOM');
         if (this._isMounted) {
           this.setState({ isGeneratingImage: false });
-          alert('Internal error: capture element missing.');
+          this.props.error({ title: 'Internal error: capture element missing.', position: 'tr', autoDismiss: 5 });
         }
       }
     }, 1200);
@@ -957,6 +980,11 @@ class Invoice extends React.PureComponent {
       paymentMethod
     } = this.state;
 
+    // Calculate effective paid amount
+    const totalPaid = this.state.payments.length > 0
+      ? this.state.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+      : (paid || 0);
+
     // Helper for date formatting
     const formatDateForPrint = (dateString, createdString) => {
       // Fallback to just date
@@ -972,8 +1000,6 @@ class Invoice extends React.PureComponent {
       item => item.product || (item.productName && item.productName.trim() !== '')
     );
 
-
-
     // Create rows HTML
     const rowsHtml = filledInvoiceItems
       .map(
@@ -988,10 +1014,6 @@ class Invoice extends React.PureComponent {
             `
       )
       .join('');
-
-
-
-
 
     // Create the full HTML document with CSS
     return `
@@ -1196,7 +1218,7 @@ class Invoice extends React.PureComponent {
                     ` : ''}
                     <tr class="totals-section totals-row">
                       <td colSpan="3">Paid</td>
-                      <td class="total-cell">${paid || 0}</td>
+                      <td class="total-cell">${totalPaid}</td>
                     </tr>
                     ${due > 0 ? `
                       <tr class="totals-section totals-row">
@@ -1255,6 +1277,19 @@ class Invoice extends React.PureComponent {
     }, 300);
   };
 
+  updateDropdownDirection = () => {
+    // Small timeout to ensure document.activeElement is correctly set to the newly focused input
+    setTimeout(() => {
+      const activeEl = document.activeElement;
+      if (activeEl && activeEl.getBoundingClientRect) {
+        const rect = activeEl.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        // If space below is less than 250px (height of dropdown is max 180px), show above
+        this.setState({ dropdownDirection: spaceBelow < 250 ? 'up' : 'down' });
+      }
+    }, 0);
+  };
+
   handleFocusProduct = index => {
     console.log('handle focus product: index:', index)
     if ((index + 1) % 10 === 0) {
@@ -1269,7 +1304,7 @@ class Invoice extends React.PureComponent {
       this.setState({
         focusedRowIndex: index,
         searchTerm: item.productName || ''
-      });
+      }, this.updateDropdownDirection);
       return;
     }
 
@@ -1295,7 +1330,7 @@ class Invoice extends React.PureComponent {
       invoiceItems,
       searchTerm: '', // Clear the search term
       focusedRowIndex: index // Set the focused row index
-    });
+    }, this.updateDropdownDirection);
   };
 
   handleEditProduct = index => {
@@ -1305,7 +1340,7 @@ class Invoice extends React.PureComponent {
         focusedRowIndex: index,
         searchTerm: item.productName || item.product.shortName || item.product.name || '',
         selectedProductIndex: 0
-      });
+      }, this.updateDropdownDirection);
     }
   };
 
@@ -1317,10 +1352,10 @@ class Invoice extends React.PureComponent {
   // };
 
   /**
- * Handles the blur event on the product search input.
- * Uses a timeout to allow click events on the product list to process first.
- * Also implements the logic to clear the row if the search term is empty.
- */
+  * Handles the blur event on the product search input.
+  * Uses a timeout to allow click events on the product list to process first.
+  * Also implements the logic to clear the row if the search term is empty.
+  */
   handleBlurRow = () => {
     // Use setTimeout to allow click events to process before hiding dropdown
     setTimeout(() => {
@@ -1390,6 +1425,11 @@ class Invoice extends React.PureComponent {
     const filledInvoiceItems = invoiceItems.filter(
       item => item.product || (item.productName && item.productName.trim() !== '')
     );
+
+    // Calculate effective paid amount
+    const totalPaid = this.state.payments.length > 0
+      ? this.state.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+      : (paid || 0);
 
     return (
       <div id="sharable-invoice-capture" style={{
@@ -1483,7 +1523,7 @@ class Invoice extends React.PureComponent {
                   )}
                   <tr>
                     <td style={{ padding: '4px 0', textAlign: 'right' }}>Paid:</td>
-                    <td style={{ padding: '4px 0 4px 15px', textAlign: 'right', fontWeight: 'bold' }}>{paid || 0}</td>
+                    <td style={{ padding: '4px 0 4px 15px', textAlign: 'right', fontWeight: 'bold' }}>{totalPaid}</td>
                   </tr>
                   <tr style={{ borderTop: '2px solid #333' }}>
                     <td style={{ padding: '4px 0', textAlign: 'right', fontWeight: 'bold' }}>Net Due:</td>
@@ -1535,10 +1575,10 @@ class Invoice extends React.PureComponent {
   };
 
   /**
- * Utility function to move focus to the next input field in the current row.
- * @param {number} rowIndex - The index of the current row.
- * @param {number} offset - The number of inputs to skip (1 for Quantity, 2 for Unit Price).
- */
+  * Utility function to move focus to the next input field in the current row.
+  * @param {number} rowIndex - The index of the current row.
+  * @param {number} offset - The number of inputs to skip (1 for Quantity, 2 for Unit Price).
+  */
   focusNextInput = (rowIndex, offset = 1) => {
     // The inputs are rendered in order: Product (0), Quantity (1), Unit Price (2) for each row.
     // The target input index is (rowIndex * 3) + offset.
@@ -1802,11 +1842,11 @@ class Invoice extends React.PureComponent {
    */
   handleFocusCustomerName = () => {
     // Only show the dropdown if there's a search term or previous results
-    if (this.state.customerSearchTerm.length > 0 || this.state.filteredCustomers.length > 0) {
-      this.setState({ focusedCustomerSearch: true });
-    }
     // Set the input value back to the search term (which is the actual input content)
-    this.setState({ customerSearchTerm: this.state.customerInfo.name });
+    this.setState({
+      customerSearchTerm: this.state.customerInfo.name,
+      focusedCustomerSearch: true // Ensure it shows up if focused
+    }, this.updateDropdownDirection);
   }
 
   /**
@@ -1831,10 +1871,10 @@ class Invoice extends React.PureComponent {
     try {
       await this.props.fetchProducts(0);
       // Products will be saved to cache in componentDidUpdate
-      alert('Products refreshed successfully!');
+      this.props.success({ title: 'Products refreshed successfully!', position: 'tr', autoDismiss: 3 });
     } catch (error) {
       console.error('Error refreshing products:', error);
-      alert('Failed to refresh products.');
+      this.props.error({ title: 'Failed to refresh products.', position: 'tr', autoDismiss: 5 });
     }
     this.setState({ isLoadingProducts: false });
   };
@@ -2012,7 +2052,8 @@ class Invoice extends React.PureComponent {
       isStockModalOpen: false, // Reset stock modal state
       isInvoiceListModalOpen: false, // Reset invoice list modal state
       payments: [],
-      fee: '' // Reset fee
+      fee: '', // Reset fee
+      selectedAccount: this.state.accounts.find(a => a.type === 'cash' || a.name.toLowerCase().includes('cash'))?._id || (this.state.accounts.length > 0 ? this.state.accounts[0]._id : '')
     });
   };
 
@@ -2022,17 +2063,22 @@ class Invoice extends React.PureComponent {
       // Prevent adding extra rows if already in multi-pay mode (e.g. double click)
       if (prevState.payments.length >= 2) return null;
 
-      const existingData = prevState.payments.length > 0 ? prevState.payments[0] : {
-        account: prevState.selectedAccount || (prevState.accounts.length > 0 ? prevState.accounts[0]._id : ''),
+      // Find Cash account for the first row
+      const cashAccount = prevState.accounts.find(a => a.type === 'cash' || a.name.toLowerCase().includes('cash'));
+      const cashAccountId = cashAccount ? cashAccount._id : (prevState.accounts.length > 0 ? prevState.accounts[0]._id : '');
+
+      // First row: Cash account with existing paid amount
+      const firstRow = {
+        account: cashAccountId,
         amount: prevState.paid || '',
-        fee: prevState.fee || ''
+        fee: ''
       };
 
+      // Second row: Empty for user to select
+      const secondRow = { account: '', amount: '', fee: '' };
+
       return {
-        payments: [
-          existingData,
-          { account: '', amount: '', fee: '' }
-        ]
+        payments: [firstRow, secondRow]
       };
     });
   };
@@ -2108,9 +2154,13 @@ class Invoice extends React.PureComponent {
   };
 
   handleSaveInvoice = async () => {
-    const success = await this.saveInvoiceToDatabase();
-    if (success) {
-      alert('Invoice saved successfully!');
+    const successResult = await this.saveInvoiceToDatabase();
+    if (successResult) {
+      this.props.success({
+        title: 'Invoice saved successfully!',
+        position: 'tr',
+        autoDismiss: 2
+      });
     }
   };
 
@@ -2139,9 +2189,9 @@ class Invoice extends React.PureComponent {
         })
       ]);
       // Alert removed
-    } catch (err) {
-      console.error('Failed to copy image:', err);
-      alert('Failed to copy image. Your browser might not support this feature.');
+    } catch (error) {
+      console.error('Failed to copy image:', error);
+      this.props.error({ title: 'Failed to copy image. Your browser might not support this feature.', position: 'tr', autoDismiss: 5 });
     }
   };
 
@@ -2190,9 +2240,9 @@ class Invoice extends React.PureComponent {
       // Alert removed
       window.open(url, '_blank');
 
-    } catch (err) {
-      console.error('Share failed:', err);
-      alert('Could not share image. Please download and send manually.');
+    } catch (error) {
+      console.error('Share failed:', error);
+      this.props.error({ title: 'Could not share image. Please download and send manually.', position: 'tr', autoDismiss: 5 });
     }
   };
 
@@ -2288,7 +2338,7 @@ class Invoice extends React.PureComponent {
                       if (val && val.length === 13) {
                         this.fetchAndLoadInvoice(val);
                       } else {
-                        alert('Please enter a valid 13-digit invoice number');
+                        this.props.warning({ title: 'Please enter a valid 13-digit invoice number', position: 'tr', autoDismiss: 3 });
                       }
                     }
                   }}
@@ -2299,7 +2349,7 @@ class Invoice extends React.PureComponent {
                     if (input && input.value && input.value.length === 13) {
                       this.fetchAndLoadInvoice(input.value);
                     } else {
-                      alert('Please enter a valid 13-digit invoice number');
+                      this.props.warning({ title: 'Please enter a valid 13-digit invoice number', position: 'tr', autoDismiss: 3 });
                     }
                   }}
                   style={{
@@ -2566,7 +2616,9 @@ class Invoice extends React.PureComponent {
       borderRadius: '10px',
       backgroundColor: 'white',
       boxShadow: '0 10px 40px rgba(0,0,0,0.12)',
-      marginTop: '2px'
+      marginTop: this.state.dropdownDirection === 'up' ? 'unset' : '2px',
+      bottom: this.state.dropdownDirection === 'up' ? '100%' : 'unset',
+      marginBottom: this.state.dropdownDirection === 'up' ? '2px' : 'unset'
     };
 
     const resultItemStyle = {
@@ -3565,4 +3617,12 @@ const mapStateToProps = state => ({
   user: state.account.user // Assuming user info is in the auth reducer
 });
 
-export default connect(mapStateToProps, actions)(Invoice);
+const mapDispatchToProps = dispatch => ({
+  ...actions(dispatch),
+  success: opts => dispatch(success(opts)),
+  error: opts => dispatch(error(opts)),
+  warning: opts => dispatch(warning(opts)),
+  dispatch
+});
+
+export default connect(mapStateToProps, mapDispatchToProps)(Invoice);

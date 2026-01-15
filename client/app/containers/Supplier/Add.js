@@ -1,5 +1,8 @@
 import React from 'react';
+import { connect } from 'react-redux';
+import { success, error, warning } from 'react-notification-system-redux';
 import axios from 'axios';
+import actions from '../../actions';
 import { Row, Col, Card, CardBody, Button, FormGroup, Label, Input } from 'reactstrap';
 import { API_URL } from '../../constants';
 
@@ -31,8 +34,8 @@ class SupplierAdd extends React.Component {
                 notes: notes || ''
             });
         } catch (error) {
-            console.error('Error fetching supplier:', error);
-            alert('Error loading supplier data');
+            console.error('Error fetching supplier:', err);
+            this.props.error({ title: 'Error loading supplier data', position: 'tr', autoDismiss: 5 });
         }
     };
 
@@ -43,20 +46,20 @@ class SupplierAdd extends React.Component {
     handleSubmit = async () => {
         const { id } = this.props.match.params;
         const { name, phoneNumber, address, notes, isEdit } = this.state;
-        if (!name) return alert('Name is required');
+        if (!name) return this.props.warning({ title: 'Name is required', position: 'tr', autoDismiss: 3 });
 
         try {
             if (isEdit) {
                 await axios.put(`${API_URL}/supplier/update/${id}`, { name, phoneNumber, address, notes });
-                alert('Supplier Updated Successfully!');
+                this.props.success({ title: 'Supplier Updated Successfully!', position: 'tr', autoDismiss: 3 });
             } else {
                 await axios.post(`${API_URL}/supplier/add`, { name, phoneNumber, address, notes });
-                alert('Supplier Added Successfully!');
+                this.props.success({ title: 'Supplier Added Successfully!', position: 'tr', autoDismiss: 3 });
             }
             this.props.history.push('/dashboard/supplier');
         } catch (error) {
-            alert(`Error ${isEdit ? 'updating' : 'adding'} supplier`);
-            console.error(error);
+            this.props.error({ title: `Error ${isEdit ? 'updating' : 'adding'} supplier`, position: 'tr', autoDismiss: 5 });
+            console.error(err);
         }
     };
 
@@ -65,9 +68,30 @@ class SupplierAdd extends React.Component {
 
         return (
             <div className="supplier-add">
-                <div className="d-flex justify-content-between align-items-center mb-4">
-                    <h3>{isEdit ? 'Edit Supplier' : 'Add New Supplier'}</h3>
-                    <Button color="secondary" onClick={() => this.props.history.push('/dashboard/supplier')}>Back</Button>
+                <div className="d-flex justify-content-between align-items-center" style={{ background: '#fff', padding: '20px 24px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '20px' }}>
+                    <div className="d-flex align-items-center">
+                        <div style={{
+                            width: '4px',
+                            height: '24px',
+                            background: '#06b6d4',
+                            borderRadius: '2px',
+                            marginRight: '12px'
+                        }}></div>
+                        <h2 className="mb-0" style={{
+                            fontWeight: '700',
+                            color: '#1e293b',
+                            fontSize: '20px',
+                            letterSpacing: '-0.5px'
+                        }}>
+                            {isEdit ? 'Edit Supplier' : 'Add New Supplier'}
+                        </h2>
+                    </div>
+                    <button
+                        className="btn-neon btn-neon--cyan"
+                        onClick={() => this.props.history.push('/dashboard/supplier')}
+                    >
+                        Cancel
+                    </button>
                 </div>
 
                 <Row>
@@ -104,4 +128,16 @@ class SupplierAdd extends React.Component {
     }
 }
 
-export default SupplierAdd;
+const mapStateToProps = state => ({
+    user: state.account.user
+});
+
+const mapDispatchToProps = dispatch => ({
+    ...actions(dispatch),
+    success: opts => dispatch(success(opts)),
+    error: opts => dispatch(error(opts)),
+    warning: opts => dispatch(warning(opts)),
+    dispatch
+});
+
+export default connect(mapStateToProps, mapDispatchToProps)(SupplierAdd);

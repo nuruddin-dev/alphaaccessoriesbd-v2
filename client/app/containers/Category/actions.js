@@ -170,7 +170,7 @@ export const addCategory = () => {
       const response = await axios.post(`${API_URL}/category/add`, newCategory);
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };
@@ -233,7 +233,7 @@ export const updateCategory = () => {
       });
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };
@@ -260,7 +260,7 @@ export const activateCategory = (id, value) => {
       });
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };
@@ -281,7 +281,7 @@ export const deleteCategory = id => {
       const response = await axios.delete(`${API_URL}/category/delete/${id}`);
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };

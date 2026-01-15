@@ -66,13 +66,33 @@ class Customer extends React.PureComponent {
 
     return (
       <div className='order-dashboard'>
-        <SubPage
-          title='Customer Orders'
-          actionTitle='My Orders'
-          handleAction={() =>
-            user.role === ROLES.Admin && history.push('/dashboard/orders/admin')
-          }
-        >
+        <div className="d-flex justify-content-between align-items-center" style={{ background: '#fff', padding: '20px 24px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '20px' }}>
+          <div className="d-flex align-items-center">
+            <div style={{
+              width: '4px',
+              height: '24px',
+              background: '#06b6d4',
+              borderRadius: '2px',
+              marginRight: '12px'
+            }}></div>
+            <h2 className="mb-0" style={{
+              fontWeight: '700',
+              color: '#1e293b',
+              fontSize: '20px',
+              letterSpacing: '-0.5px'
+            }}>
+              Customer Orders
+            </h2>
+          </div>
+          <button
+            className="btn-neon btn-neon--cyan"
+            onClick={() => user.role === ROLES.Admin && history.push('/dashboard/orders/admin')}
+          >
+            My Orders
+          </button>
+        </div>
+
+        <div className="bg-white rounded shadow-sm p-3">
           <OrderSearch
             onSearch={this.handleOrderSearch}
             onSearchSubmit={searchOrders}
@@ -97,7 +117,7 @@ class Customer extends React.PureComponent {
           {!isLoading && !displayOrders && (
             <NotFound message='No orders found.' />
           )}
-        </SubPage>
+        </div>
       </div>
     );
   }

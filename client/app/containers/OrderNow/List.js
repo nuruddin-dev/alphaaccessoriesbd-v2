@@ -126,10 +126,14 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useTable, usePagination } from 'react-table';
 import { connect } from 'react-redux';
+import { success, error, warning } from 'react-notification-system-redux';
 import actions from '../../actions';
 import Button from '../../components/Common/Button';
 import { Modal, ModalHeader, ModalBody, ModalFooter, Input } from 'reactstrap';
+import { useHistory } from 'react-router-dom';
 import '../../styles/core/_orderNow.scss';
+import OrderCourierModal from './OrderCourierModal';
+import '../Courier/Steadfast.css';
 import { ORDER_STATUS } from '../../constants';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -143,13 +147,19 @@ const List = ({
   fetchOrderNows,
   updateOrderNote,
   updateOrderStatus,
-  deleteOrderNow // Add delete functionality
+  deleteOrderNow, // Add delete functionality
+  success,
+  error,
+  warning
 }) => {
-  const [selectedStatus, setSelectedStatus] = useState('All');
+  const history = useHistory();
+  const [selectedStatus, setSelectedStatus] = useState('Pending');
   const [notes, setNotes] = useState({});
   const [selectedOrder, setSelectedOrder] = useState(null); // Track selected order for updating note
   const [updatedNote, setUpdatedNote] = useState(''); // Track the updated note
   const [isModalOpen, setIsModalOpen] = useState(false); // Track modal visibility
+  const [isCourierModalOpen, setIsCourierModalOpen] = useState(false);
+  const [courierOrder, setCourierOrder] = useState(null);
 
   useEffect(() => {
     fetchOrderNows();
@@ -176,6 +186,11 @@ const List = ({
     setSelectedOrder(null);
     setUpdatedNote('');
     setIsModalOpen(false);
+  };
+
+  const toggleCourierModal = (order = null) => {
+    setCourierOrder(order);
+    setIsCourierModalOpen(!isCourierModalOpen);
   };
 
   const handleNoteUpdate = () => {
@@ -208,9 +223,7 @@ const List = ({
           price: order.price,
           status: order.status,
           createdAt: order.createdAt,
-          note: notes[order._id] || order.note || '',
-          color: `#${Math.floor(Math.random() * 16777215).toString(16)}`,
-          backgroundColor: getRandomLightColor()
+          note: notes[order._id] || order.note || ''
         })),
       [orders, notes]
     );
@@ -228,6 +241,7 @@ const List = ({
           accessor: 'status',
           Cell: ({ value, row }) => (
             <select
+              className="status-select"
               value={value}
               onChange={e =>
                 handleStatusChange(row.original.id, e.target.value)
@@ -244,62 +258,53 @@ const List = ({
         {
           Header: 'Created',
           accessor: 'createdAt',
-          Cell: ({ value }) => dayjs(value).fromNow() // Timeago format
+          Cell: ({ value }) => (
+            <span style={{ fontWeight: '500', color: '#64748b' }}>
+              {dayjs(value).fromNow()}
+            </span>
+          )
         },
         {
           Header: 'Note',
           accessor: 'note',
           Cell: ({ value, row }) => (
             <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                width: '100%'
-              }}
+              className="d-flex align-items-center gap-2"
+              style={{ minWidth: '150px' }}
             >
               <div
                 style={{
-                  width: '85%',
-                  marginRight: '10px',
+                  fontSize: '13px',
+                  color: '#475569',
                   whiteSpace: 'pre-wrap',
                   wordWrap: 'break-word',
-                  padding: '5px',
-                  borderRadius: '4px'
+                  flexGrow: 1
                 }}
               >
-                {value || ''}
+                {value || <span style={{ color: '#cbd5e1', fontStyle: 'italic' }}>No note</span>}
               </div>
-              <i
-                className='fa fa-plus-square'
-                style={{
-                  cursor: 'pointer',
-                  fontSize: '1.5rem',
-                  color: '#007bff'
-                }}
-                onClick={() => openModal(row.original)}
-              />
+              <div className="action-icon action-icon-plus" onClick={() => openModal(row.original)}>
+                <i className='fa fa-plus-square' />
+              </div>
             </div>
           )
         },
         {
-          Header: 'Delete',
+          Header: 'Actions',
           accessor: 'delete',
           Cell: ({ row }) => (
-            <i
-              className='fa fa-trash'
-              style={{
-                cursor: 'pointer',
-                fontSize: '1.5rem',
-                color: '#dc3545',
-                display: 'flex',
-                justifyContent: 'center', // Centers horizontally
-                alignItems: 'center', // Centers vertically
-                height: '100%',
-                width: '100%'
-              }}
-              onClick={() => handleDeleteOrder(row.original.id)}
-            />
+            <div className="d-flex justify-content-center gap-2">
+              <div
+                className="action-icon action-icon-courier"
+                onClick={() => toggleCourierModal(row.original)}
+                title="Add to Courier"
+              >
+                <i className='fa fa-truck' />
+              </div>
+              <div className="action-icon action-icon-trash" onClick={() => handleDeleteOrder(row.original.id)}>
+                <i className='fa fa-trash' />
+              </div>
+            </div>
           )
         }
       ],
@@ -324,71 +329,182 @@ const List = ({
     );
 
     return (
-      <div>
-        <table className='table' {...getTableProps()}>
-          <thead>
-            {headerGroups.map(headerGroup => (
-              <tr {...headerGroup.getHeaderGroupProps()}>
-                {headerGroup.headers.map(column => (
-                  <th {...column.getHeaderProps()}>
-                    {column.render('Header')}
-                  </th>
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody {...getTableBodyProps()}>
-            {page.map(row => {
-              prepareRow(row);
-              return (
-                <tr
-                  {...row.getRowProps()}
-                  style={{
-                    backgroundColor: row.original.backgroundColor // Apply the random light background color here
-                  }}
-                >
-                  {row.cells.map(cell => (
-                    <td {...cell.getCellProps()}>{cell.render('Cell')}</td>
+      <div className="table-container" style={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid #f1f5f9' }}>
+        <div style={{ overflowY: 'auto' }}>
+          <table className='table table-borderless align-middle mb-0' {...getTableProps()} style={{ color: '#475569', minWidth: '1000px' }}>
+            <thead style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9', position: 'sticky', top: 0, zIndex: 1 }}>
+              {headerGroups.map(headerGroup => (
+                <tr {...headerGroup.getHeaderGroupProps()}>
+                  {headerGroup.headers.map(column => (
+                    <th {...column.getHeaderProps()} style={{
+                      padding: '16px 20px',
+                      color: '#64748b',
+                      fontWeight: '700',
+                      fontSize: '11px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      {column.render('Header')}
+                    </th>
                   ))}
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        <div className='pagination'>
-          <button onClick={previousPage} disabled={!canPreviousPage}>
-            Previous
-          </button>
-          <button onClick={nextPage} disabled={!canNextPage}>
-            Next
-          </button>
-          <span>
-            Page <strong>{pageIndex + 1}</strong>
-          </span>
+              ))}
+            </thead>
+            <tbody {...getTableBodyProps()} style={{ background: '#fff' }}>
+              {page.map(row => {
+                prepareRow(row);
+                return (
+                  <tr {...row.getRowProps()} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.2s' }} className="table-row-hover">
+                    {row.cells.map(cell => (
+                      <td {...cell.getCellProps()} style={{ padding: '16px 20px', fontSize: '14px' }}>
+                        {cell.render('Cell')}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <style>{`
+          .table-row-hover:hover {
+            background-color: #f8fafc;
+          }
+          .status-select {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 4px 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #0891b2;
+            background: #e0f7fa;
+            cursor: pointer;
+            transition: all 0.2s;
+          }
+          .status-select:focus {
+            outline: none;
+            border-color: #06b6d4;
+            box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
+          }
+          .action-icon {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            transition: all 0.2s;
+            cursor: pointer;
+          }
+          .action-icon-plus {
+            color: #06b6d4;
+            background: rgba(6, 182, 212, 0.1);
+          }
+          .action-icon-plus:hover {
+            background: #06b6d4;
+            color: #fff;
+          }
+          .action-icon-trash {
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+          }
+          .action-icon-trash:hover {
+            background: #ef4444;
+            color: #fff;
+          }
+          .action-icon-courier {
+            color: #f59e0b;
+            background: rgba(245, 158, 11, 0.1);
+          }
+          .action-icon-courier:hover {
+            background: #f59e0b;
+            color: #fff;
+          }
+          .pagination-btn {
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            color: #64748b;
+            padding: 6px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 13px;
+            transition: all 0.2s;
+          }
+          .pagination-btn:hover:not(:disabled) {
+            border-color: #06b6d4;
+            color: #06b6d4;
+            background: #f0f9ff;
+          }
+          .pagination-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+          }
+        `}</style>
+
+        <div className='d-flex justify-content-between align-items-center p-4 bg-white' style={{ borderTop: '1px solid #f1f5f9' }}>
+          <div style={{ fontSize: '14px', color: '#64748b' }}>
+            Showing page <strong>{pageIndex + 1}</strong>
+          </div>
+          <div className='d-flex gap-2' style={{ gap: '10px' }}>
+            <button className="pagination-btn" onClick={previousPage} disabled={!canPreviousPage}>
+              <i className="fa fa-chevron-left mr-1"></i> Previous
+            </button>
+            <button className="pagination-btn" onClick={nextPage} disabled={!canNextPage}>
+              Next <i className="fa fa-chevron-right ml-1"></i>
+            </button>
+          </div>
         </div>
       </div>
     );
   };
 
   return (
-    <div className='orderNow-dashboard'>
-      <div className='tabs'>
-        {['All', ...Object.values(ORDER_STATUS)].map(status => (
-          <Button
-            key={status}
-            text={status}
-            variant={selectedStatus === status ? 'primary' : 'secondary'}
-            onClick={() => setSelectedStatus(status)}
-          />
-        ))}
+    <div className='orderNow-dashboard' style={{ padding: '0 24px 24px 24px', backgroundColor: '#f3f4f6', minHeight: 'calc(100vh - 80px)' }}>
+      <div className="courier-selection-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', padding: '10px 20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '20px' }}>
+        <div className="d-flex align-items-center">
+          <button className="nav-tab mr-3" onClick={() => history.push('/dashboard')}>
+            <i className="fa fa-arrow-left"></i> Back
+          </button>
+          <div style={{
+            width: '4px',
+            height: '24px',
+            background: '#06b6d4',
+            borderRadius: '2px',
+            marginRight: '12px'
+          }}></div>
+          <h2 className="mb-0" style={{
+            fontWeight: '700',
+            color: '#1e293b',
+            fontSize: '18px',
+            letterSpacing: '-0.5px'
+          }}>
+            Order Requests
+          </h2>
+        </div>
+
+        <div className="nav-shortcuts d-flex flex-wrap" style={{ gap: '8px' }}>
+          {['All', ...Object.values(ORDER_STATUS)].map(status => (
+            <button
+              key={status}
+              className={`nav-tab ${selectedStatus === status ? 'active' : ''}`}
+              onClick={() => setSelectedStatus(status)}
+            >
+              {status}
+            </button>
+          ))}
+        </div>
       </div>
-      {isLoading ? (
-        <div className='loading'>Loading orders...</div>
-      ) : filteredOrders.length > 0 ? (
-        <Table orders={filteredOrders} />
-      ) : (
-        <div className='no-orders'>No orders found.</div>
-      )}
+
+      <div className="bg-white rounded shadow-sm p-3">
+        {isLoading ? (
+          <div className='loading'>Loading orders...</div>
+        ) : filteredOrders.length > 0 ? (
+          <Table orders={filteredOrders} />
+        ) : (
+          <div className='no-orders'>No orders found.</div>
+        )}
+      </div>
 
       {/* Modal for Note Update */}
       <Modal isOpen={isModalOpen} toggle={closeModal}>
@@ -406,6 +522,15 @@ const List = ({
           <Button text='Cancel' variant='secondary' onClick={closeModal} />
         </ModalFooter>
       </Modal>
+
+      <OrderCourierModal
+        isOpen={isCourierModalOpen}
+        toggle={() => toggleCourierModal()}
+        order={courierOrder}
+        onSuccess={fetchOrderNows}
+        success={success}
+        error={error}
+      />
     </div>
   );
 };
@@ -415,4 +540,12 @@ const mapStateToProps = state => ({
   isLoading: state.orderNow.isLoading
 });
 
-export default connect(mapStateToProps, actions)(List);
+const mapDispatchToProps = dispatch => ({
+  ...actions(dispatch),
+  success: opts => dispatch(success(opts)),
+  error: opts => dispatch(error(opts)),
+  warning: opts => dispatch(warning(opts)),
+  dispatch
+});
+
+export default connect(mapStateToProps, mapDispatchToProps)(List);

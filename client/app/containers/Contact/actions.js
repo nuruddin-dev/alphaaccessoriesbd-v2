@@ -52,7 +52,7 @@ export const contactUs = () => {
       const response = await axios.post(`${API_URL}/contact/add`, contact);
 
       const successfulOptions = {
-        title: `${response.data.message}`,
+        title: response.data.message || 'Updated successfully',
         position: 'tr',
         autoDismiss: 1
       };

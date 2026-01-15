@@ -25,11 +25,32 @@ class Add extends React.PureComponent {
     } = this.props;
 
     return (
-      <SubPage
-        title='Add Merchant'
-        actionTitle='Cancel'
-        handleAction={() => history.goBack()}
-      >
+      <div className='add-merchant'>
+        <div className="d-flex justify-content-between align-items-center" style={{ background: '#fff', padding: '20px 24px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '20px' }}>
+          <div className="d-flex align-items-center">
+            <div style={{
+              width: '4px',
+              height: '24px',
+              background: '#06b6d4',
+              borderRadius: '2px',
+              marginRight: '12px'
+            }}></div>
+            <h2 className="mb-0" style={{
+              fontWeight: '700',
+              color: '#1e293b',
+              fontSize: '20px',
+              letterSpacing: '-0.5px'
+            }}>
+              Add Merchant
+            </h2>
+          </div>
+          <button
+            className="btn-neon btn-neon--cyan"
+            onClick={() => history.goBack()}
+          >
+            Cancel
+          </button>
+        </div>
         <AddMerchant
           merchantFormData={merchantFormData}
           formErrors={formErrors}
@@ -38,7 +59,7 @@ class Add extends React.PureComponent {
           merchantChange={merchantChange}
           addMerchant={() => addMerchant(true)}
         />
-      </SubPage>
+      </div>
     );
   }
 }

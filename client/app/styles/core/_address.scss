@@ -2,8 +2,8 @@
   .a-list {
     .address-box {
       height: 100%;
-      border-radius: $border-radius-default;
-      box-shadow: $box-shadow-secondary;
+      border-radius: 8px;
+      border: 1px solid #f1f5f9;
       @include transition();
 
       &:hover {

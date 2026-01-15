@@ -17,7 +17,11 @@ const InvoiceSchema = new Schema({
     default: true
   },
   customerName: {
-    type: String
+    type: String,
+    set: (value) => {
+      if (!value) return value;
+      return value.toLowerCase().replace(/(?:^|\s)\S/g, (a) => a.toUpperCase());
+    }
   },
   customerPhone: {
     type: String
@@ -57,8 +61,7 @@ const InvoiceSchema = new Schema({
   },
   previousDue: {
     type: Number,
-    default: 0,
-    min: 0
+    default: 0
   },
   discount: {
     type: Number,

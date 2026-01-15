@@ -313,7 +313,7 @@
     width: 36px;
     height: 36px;
     border-radius: 10px;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
@@ -527,7 +527,6 @@
     border: 1px solid rgba(0, 0, 0, 0.1);
     border-radius: 20px;
     width: 90%;
-    max-height: 80vh;
     overflow: hidden;
     box-shadow: 0 25px 60px rgba(0, 0, 0, 0.2);
     animation: slideUp 0.3s ease;
@@ -583,7 +582,6 @@
 
 .modal-body {
     padding: 24px;
-    max-height: 50vh;
     overflow-y: auto;
 }
 
@@ -712,7 +710,7 @@
 
 /* Received Date Input */
 .received-date-input {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 8px;
 }

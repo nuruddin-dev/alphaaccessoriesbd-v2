@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { success, error, warning } from 'react-notification-system-redux';
 import { useTable, useSortBy } from 'react-table';
 import axios from 'axios';
 import { API_URL } from '../../../constants';
@@ -7,6 +9,7 @@ import PaymentModal from '../PaymentModal';
 import CustomerLedgerModal from '../CustomerLedgerModal';
 
 const CustomerTable = ({ customers, history }) => {
+  const dispatch = useDispatch();
   const [invoiceDetails, setInvoiceDetails] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -44,7 +47,7 @@ const CustomerTable = ({ customers, history }) => {
       {
         Header: 'Name',
         accessor: 'name',
-        Cell: ({ row }) => <div className='font-weight-bold'>{row.original.name}</div>
+        Cell: ({ row }) => <div style={{ fontWeight: '600', color: '#1e293b' }}>{row.original.name}</div>
       },
       {
         Header: 'Due Amount',
@@ -55,9 +58,20 @@ const CustomerTable = ({ customers, history }) => {
           return dueA - dueB;
         },
         Cell: ({ value }) => (
-          <span className={`font-weight-bold ${value > 0 ? 'text-danger' : 'text-success'}`}>
-            ৳{value?.toLocaleString() || 0}
-          </span>
+          <div className="d-flex align-items-center">
+            <span
+              className={`font-weight-bold`}
+              style={{
+                color: value > 0 ? '#ef4444' : '#10b981',
+                background: value > 0 ? '#fef2f2' : '#ecfdf5',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '13px'
+              }}
+            >
+              ৳{value?.toLocaleString() || 0}
+            </span>
+          </div>
         )
       },
       {
@@ -76,7 +90,11 @@ const CustomerTable = ({ customers, history }) => {
           const countB = rowB.original.purchaseHistory?.length || 0;
           return countA - countB;
         },
-        Cell: ({ value }) => value?.length || 0 // Show the count of purchase history
+        Cell: ({ value }) => (
+          <span className="badge badge-light" style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+            {value?.length || 0} Invoices
+          </span>
+        )
       },
       {
         Header: 'Account Created',
@@ -89,39 +107,47 @@ const CustomerTable = ({ customers, history }) => {
         Header: 'Actions',
         disableSortBy: true,
         Cell: ({ row }) => (
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <i
-              className='fa fa-edit'
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <div
+              className='action-icon edit'
               onClick={() => history.push(`/dashboard/customer/edit/${row.original.id}`)}
               title='Edit Customer'
-              style={{ cursor: 'pointer', fontSize: '16px', color: '#3b82f6' }}
-            ></i>
-            <i
-              className='fa fa-money'
+              style={{ cursor: 'pointer', color: '#64748b' }}
+            >
+              <i className='fa fa-edit'></i>
+            </div>
+            <div
+              className='action-icon money'
               onClick={() => {
                 const customer = safeCustomers.find(c => c._id === row.original.id);
                 setSelectedCustomer(customer);
                 setIsPaymentModalOpen(true);
               }}
               title='Record Payment'
-              style={{ cursor: 'pointer', fontSize: '16px', color: '#22c55e' }}
-            ></i>
-            <i
-              className='fa fa-book'
+              style={{ cursor: 'pointer', color: '#64748b' }}
+            >
+              <i className='fa fa-money'></i>
+            </div>
+            <div
+              className='action-icon ledger'
               onClick={() => {
                 const customer = safeCustomers.find(c => c._id === row.original.id);
                 setSelectedCustomer(customer);
                 setIsLedgerModalOpen(true);
               }}
               title='View Ledger'
-              style={{ cursor: 'pointer', fontSize: '16px', color: '#f59e0b' }}
-            ></i>
-            <i
-              className='fa fa-history'
+              style={{ cursor: 'pointer', color: '#64748b' }}
+            >
+              <i className='fa fa-book'></i>
+            </div>
+            <div
+              className='action-icon history'
               onClick={() => fetchInvoiceDetails(row.original.purchaseHistory)}
               title='View History'
-              style={{ cursor: 'pointer', fontSize: '16px', color: '#6c757d' }}
-            ></i>
+              style={{ cursor: 'pointer', color: '#64748b' }}
+            >
+              <i className='fa fa-history'></i>
+            </div>
           </div>
         )
       }
@@ -175,24 +201,79 @@ const CustomerTable = ({ customers, history }) => {
   };
 
   return (
-    <div className='table-responsive'>
+    <div className='customer-table-wrap'>
+      <style>{`
+        .customer-table-wrap .user-table {
+          width: 100%;
+          border-collapse: separate;
+          border-spacing: 0;
+        }
+        .customer-table-wrap .user-table th {
+          background: #f8fafc;
+          padding: 12px 20px;
+          font-weight: 600;
+          color: #64748b;
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          border-bottom: 1px solid #e2e8f0;
+        }
+        .customer-table-wrap .user-table td {
+          padding: 16px 20px;
+          border-bottom: 1px solid #f1f5f9;
+          vertical-align: middle;
+          color: #475569;
+          font-size: 14px;
+        }
+        .customer-table-wrap .user-table tr:hover td {
+          background: #fdfdfd;
+        }
+        .customer-table-wrap .user-table tr:last-child td {
+          border-bottom: none;
+        }
+        .action-icon {
+            width: 32px;
+            height: 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            transition: all 0.2s;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+        }
+        .action-icon:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            background: #fff;
+        }
+        .action-icon.edit:hover { border-color: #3b82f6; color: #3b82f6 !important; }
+        .action-icon.money:hover { border-color: #22c55e; color: #22c55e !important; }
+        .action-icon.ledger:hover { border-color: #f59e0b; color: #f59e0b !important; }
+        .action-icon.history:hover { border-color: #06b6d4; color: #06b6d4 !important; }
+      `}</style>
+
       {safeCustomers.length === 0 ? (
-        <p>No customers available.</p>
+        <div className="text-center p-5">
+          <p className="text-muted">No customers available.</p>
+        </div>
       ) : (
-        <table className='table' {...getTableProps()}>
+        <table className='user-table' {...getTableProps()}>
           <thead>
             {headerGroups.map(headerGroup => (
               <tr {...headerGroup.getHeaderGroupProps()}>
                 {headerGroup.headers.map(column => (
                   <th {...column.getHeaderProps(column.getSortByToggleProps())} style={{ cursor: column.canSort ? 'pointer' : 'default' }}>
-                    {column.render('Header')}
-                    <span>
-                      {column.isSorted
-                        ? column.isSortedDesc
-                          ? ' 🔽'
-                          : ' 🔼'
-                        : ''}
-                    </span>
+                    <div className="d-flex align-items-center">
+                      {column.render('Header')}
+                      <span className="ml-2" style={{ color: '#06b6d4', opacity: column.isSorted ? 1 : 0.3 }}>
+                        {column.isSorted
+                          ? column.isSortedDesc
+                            ? <i className="fa fa-caret-down"></i>
+                            : <i className="fa fa-caret-up"></i>
+                          : <i className="fa fa-sort"></i>}
+                      </span>
+                    </div>
                   </th>
                 ))}
               </tr>
@@ -354,11 +435,11 @@ const CustomerTable = ({ customers, history }) => {
                     });
                     setInvoiceDetails(updatedDetails);
                     setShowDiscountModal(false);
-                    alert('Discount updated successfully!');
+                    dispatch(success({ title: 'Discount updated successfully!', position: 'tr', autoDismiss: 3 }));
 
-                  } catch (error) {
-                    console.error('Error updating discount:', error);
-                    alert('Failed to update discount.');
+                  } catch (err) {
+                    console.error('Error updating discount:', err);
+                    dispatch(error({ title: 'Failed to update discount.', position: 'tr', autoDismiss: 5 }));
                   }
                 }}
               >
