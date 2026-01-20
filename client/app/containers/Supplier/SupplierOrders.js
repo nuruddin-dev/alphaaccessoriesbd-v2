@@ -735,13 +735,21 @@ class SupplierOrders extends React.Component {
 
         try {
             this.setState({ isSubmitting: true });
-            const response = await axios.post(`${API_URL}/product/add`, {
-                shortName: name,
-                name: name,
-                buyingPrice: 0,
-                quantity: 0,
-                price: 0,
-                isActive: false
+
+            const formData = new FormData();
+            formData.append('shortName', name);
+            formData.append('name', name);
+            formData.append('buyingPrice', 0);
+            formData.append('quantity', 0);
+            formData.append('price', 0);
+            formData.append('isActive', false);
+
+            const token = localStorage.getItem('token');
+            const response = await axios.post(`${API_URL}/product/add`, formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                    'Authorization': token
+                }
             });
 
             if (response.data.success) {
@@ -760,7 +768,7 @@ class SupplierOrders extends React.Component {
                 this.props.success({ title: 'Product created and selected!', position: 'tr', autoDismiss: 3 });
             }
         } catch (error) {
-            this.props.error({ title: 'Error creating product: ' + (error.response?.data?.error || err.message), position: 'tr', autoDismiss: 5 });
+            this.props.error({ title: 'Error creating product: ' + (error.response?.data?.error || error.message), position: 'tr', autoDismiss: 5 });
         } finally {
             this.setState({ isSubmitting: false });
         }

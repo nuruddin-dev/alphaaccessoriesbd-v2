@@ -1890,15 +1890,15 @@ class Invoice extends React.PureComponent {
 
   // Handle updating stock with weighted average calculation
   handleStockUpdate = async (productId, data) => {
-    const { products, updateProductDetails } = this.props;
+    const { products } = this.props;
     const product = products.find(p => p._id === productId);
 
     if (!product) return;
 
-    const currentQty = product.quantity || 0;
-    const currentBuyingPrice = product.buyingPrice || 0;
-    const newQty = data.quantity;
-    const newBuyingPrice = data.buyingPrice;
+    const currentQty = Number(product.quantity || 0);
+    const currentBuyingPrice = Number(product.buyingPrice || 0);
+    const newQty = Number(data.quantity || 0);
+    const newBuyingPrice = Number(data.buyingPrice || 0);
 
     const totalQty = currentQty + newQty;
 
@@ -1919,20 +1919,9 @@ class Invoice extends React.PureComponent {
       slug: product.slug
     };
 
-    // Call the update action
-    // We need to ensure updateProductDetails is available in props
-    // It seems we need to dispatch it. 
-    // Since 'actions' are imported and connected, check if updateProductDetails is in 'actions' object
-    // If not, we might need to import it specifically or rely on the connected actions
-
     // Assuming updateProductDetails is passed via mapDispatchToProps or actions object
     if (this.props.updateProductDetails) {
       await this.props.updateProductDetails(productId, payload);
-    } else {
-      // Fallback if not mapped directly, though it should be if 'actions' contains it
-      // Check if we need to dispatch manually or if 'actions' import covers it
-      // The 'actions' import usually contains all actions. 
-      // Let's assume it's mapped. If not, we'll fix it.
     }
 
     this.handleCloseStockModal();
@@ -1942,27 +1931,6 @@ class Invoice extends React.PureComponent {
 
   // Handle adding new stock (new product)
   handleStockAdd = async (data) => {
-    const { addProduct } = this.props;
-
-    // Prepare payload for new product
-    // We need to generate SKU and Slug as per previous logic if not provided
-    // But the previous logic was in the Add Product form/action.
-    // Let's rely on the server or action to handle defaults if possible, 
-    // or construct a minimal valid object here.
-
-    // The 'addProduct' action in Product/actions.js usually takes form data from the store state
-    // or arguments. Let's check how addProduct is implemented.
-    // It seems addProduct uses getState().product.productFormData.
-    // We might need a different action for adding product from data passed directly, 
-    // or we update the store first.
-
-    // To keep it simple and robust, let's call the API directly here or 
-    // create a new action 'addProductFromData' if 'addProduct' is too tied to the form state.
-    // However, looking at the previous task, we made 'addProduct' use the form state.
-
-    // Let's try to use a direct API call here for simplicity as we are in Invoice container
-    // and don't want to mess with the Product container's form state.
-
     try {
       const payload = {
         shortName: data.shortName,
@@ -1981,19 +1949,35 @@ class Invoice extends React.PureComponent {
         colors: []
       };
 
-      // We can use axios directly since we imported it
-      const response = await axios.post(`${API_URL}/product/add`, payload);
+      const formData = new FormData();
+      for (const key in payload) {
+        if (payload.hasOwnProperty(key)) {
+          if (typeof payload[key] === 'object' && payload[key] !== null) {
+            formData.append(key, JSON.stringify(payload[key]));
+          } else {
+            formData.append(key, payload[key]);
+          }
+        }
+      }
+
+      const token = localStorage.getItem('token');
+
+      const response = await axios.post(`${API_URL}/product/add`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': token
+        }
+      });
 
       if (response.data.success) {
-        // Show success notification (if we have access to success action)
-        // this.props.success(...) 
+        this.props.success({ title: 'Product added successfully!', position: 'tr', autoDismiss: 3 });
       }
 
       this.handleCloseStockModal();
       this.props.fetchProducts();
     } catch (error) {
       console.error('Failed to add product', error);
-      // Handle error
+      this.props.error({ title: 'Failed to add product', position: 'tr', autoDismiss: 3 });
     }
   };
 
