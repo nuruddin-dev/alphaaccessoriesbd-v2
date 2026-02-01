@@ -54,11 +54,10 @@ const ProductList = props => {
                       <img
                         loading='lazy'
                         className='item-image'
-                        src={`${
-                          product.imageUrl
+                        src={`${product.imageUrl
                             ? product.imageUrl
                             : '/images/placeholder-image.png'
-                        }`}
+                          }`}
                       />
                     </div>
                   </div>
@@ -80,7 +79,7 @@ const ProductList = props => {
                       <p className='price mb-0'>
                         ৳{convertToBengaliDigits(product.price)}
                       </p>
-                      {product.previousPrice && (
+                      {product.previousPrice > 0 && (
                         <p className='previous-price mb-0 ml-2'>
                           ৳{convertToBengaliDigits(product.previousPrice)}
                         </p>
@@ -95,9 +94,8 @@ const ProductList = props => {
                             {parseFloat(product?.averageRating).toFixed(1)}
                           </span>
                           <span
-                            className={`fa fa-star ${
-                              product.totalReviews !== 0 ? 'checked' : ''
-                            }`}
+                            className={`fa fa-star ${product.totalReviews !== 0 ? 'checked' : ''
+                              }`}
                             style={{ color: '#ffb302' }}
                           ></span>
                         </p>

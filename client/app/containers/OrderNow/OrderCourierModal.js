@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, ModalHeader, ModalBody, ModalFooter, Row, Col } from 'reactstrap';
 import axios from 'axios';
+import { connect } from 'react-redux';
 import { API_URL } from '../../constants';
 
-const OrderCourierModal = ({ isOpen, toggle, order, onSuccess, success, error }) => {
+const OrderCourierModal = ({ isOpen, toggle, order, onSuccess, success, error, user }) => {
     const [isCreating, setIsCreating] = useState(false);
     const [accounts, setAccounts] = useState([]);
     const [allProducts, setAllProducts] = useState([]);
@@ -120,6 +121,8 @@ const OrderCourierModal = ({ isOpen, toggle, order, onSuccess, success, error })
 
         const fullNote = formData.note ? `${productNote}. ${formData.note}` : productNote;
 
+        const createdByName = user ? `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}` : 'Admin';
+
         const finalData = {
             ...formData,
             items: selectedProducts.map(p => ({
@@ -129,7 +132,8 @@ const OrderCourierModal = ({ isOpen, toggle, order, onSuccess, success, error })
                 name: p.name
             })),
             note: fullNote,
-            item_description: fullNote
+            item_description: fullNote,
+            createdBy: createdByName
         };
 
         try {
@@ -140,7 +144,7 @@ const OrderCourierModal = ({ isOpen, toggle, order, onSuccess, success, error })
                 toggle();
             }
         } catch (error) {
-            error({ title: err.response?.data?.error || 'Failed to create courier order.', position: 'tr', autoDismiss: 5 });
+            error({ title: error.response?.data?.error || 'Failed to create courier order.', position: 'tr', autoDismiss: 5 });
         } finally {
             setIsCreating(false);
         }
@@ -355,4 +359,8 @@ const OrderCourierModal = ({ isOpen, toggle, order, onSuccess, success, error })
     );
 };
 
-export default OrderCourierModal;
+const mapStateToProps = state => ({
+    user: state.account.user
+});
+
+export default connect(mapStateToProps, null)(OrderCourierModal);

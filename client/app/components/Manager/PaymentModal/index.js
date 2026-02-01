@@ -225,7 +225,8 @@ class PaymentModal extends Component {
                 account: selectedAccount === 'none' ? null : selectedAccount,
                 fee: parseFloat(this.state.fee) || 0,
                 notes,
-                relatedInvoice: relatedInvoice || null
+                relatedInvoice: relatedInvoice || null,
+                createdBy: this.props.user ? `${this.props.user.firstName} ${this.props.user.lastName}` : 'Admin'
             });
 
             if (response.data.success) {

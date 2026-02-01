@@ -20,21 +20,21 @@ router.post('/add', async (req, res) => {
 
     const savedOrder = await newOrder.save();
 
-    // Automatically entry to Steadfast Courier
-    try {
-      const { syncToSteadfast } = require('../../utils/steadfast');
-      await syncToSteadfast({
-        invoice: `WEB-${savedOrder._id.toString().slice(-6)}`,
-        name: savedOrder.name,
-        phoneNumber: savedOrder.phoneNumber,
-        address: savedOrder.address,
-        price: savedOrder.price,
-        note: savedOrder.note,
-        productName: savedOrder.productName
-      });
-    } catch (courierError) {
-      console.error('Failed to auto-sync to Steadfast:', courierError);
-    }
+    // Automatic entry to Steadfast Courier is disabled as per user request (manual control needed)
+    // try {
+    //   const { syncToSteadfast } = require('../../utils/steadfast');
+    //   await syncToSteadfast({
+    //     invoice: `WEB-${savedOrder._id.toString().slice(-6)}`,
+    //     name: savedOrder.name,
+    //     phoneNumber: savedOrder.phoneNumber,
+    //     address: savedOrder.address,
+    //     price: savedOrder.price,
+    //     note: savedOrder.note,
+    //     productName: savedOrder.productName
+    //   });
+    // } catch (courierError) {
+    //   console.error('Failed to auto-sync to Steadfast:', courierError);
+    // }
 
     res.json(savedOrder);
   } catch (err) {

@@ -74,6 +74,7 @@ router.get('/ledger/:customerId', auth, async (req, res) => {
                     notes: payment.notes,
                     relatedInvoice: payment.relatedInvoice,
                     _id: payment._id,
+                    createdBy: payment.createdBy,
                     isPaymentRecord: true // Flag to hide amount in debit/credit column
                 });
             });

@@ -1617,81 +1617,89 @@ class SupplierOrders extends React.Component {
 
         return (
             <div className="supplier-orders" style={{ padding: '0 24px 24px 24px', backgroundColor: '#f3f4f6', minHeight: 'calc(100vh - 80px)' }}>
-                <div className="courier-selection-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', padding: '10px 20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '20px' }}>
-                    <div className="d-flex align-items-center">
-                        <button className="nav-tab mr-3" onClick={() => this.props.history.push('/dashboard/import')}>
-                            <i className="fa fa-arrow-left"></i> Back
-                        </button>
-                        <div style={{
-                            width: '4px',
-                            height: '24px',
-                            background: '#06b6d4',
-                            borderRadius: '2px',
-                            marginRight: '12px'
-                        }}></div>
-                        <div>
-                            <h2 className="mb-0" style={{
-                                fontWeight: '700',
-                                color: '#1e293b',
-                                fontSize: '18px',
-                                letterSpacing: '-0.5px'
-                            }}>
-                                {supplier ? supplier.name : 'Loading...'}
-                            </h2>
-                            {supplier && (
-                                <small className="text-muted font-weight-bold" style={{ fontSize: '11px', marginTop: '-2px', display: 'block' }}>
-                                    {supplier.phoneNumber} {supplier.address && `• ${supplier.address}`}
-                                </small>
-                            )}
+                <div className="courier-selection-header" style={{ background: '#fff', padding: '15px 20px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div className="d-flex align-items-start" style={{ flex: 1, minWidth: 0 }}>
+                            <button className="nav-tab mr-3" onClick={() => this.props.history.push('/dashboard/import')} style={{ whiteSpace: 'nowrap' }}>
+                                <i className="fa fa-arrow-left"></i> Back
+                            </button>
+                            <div style={{
+                                width: '4px',
+                                height: '24px',
+                                background: '#06b6d4',
+                                borderRadius: '2px',
+                                marginRight: '12px',
+                                marginTop: '10px',
+                                flexShrink: 0
+                            }}></div>
+                            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, marginTop: '4px' }}>
+                                <h2 className="mb-0" style={{
+                                    fontWeight: '700',
+                                    color: '#1e293b',
+                                    fontSize: '18px',
+                                    letterSpacing: '-0.5px',
+                                    lineHeight: '36px'
+                                }}>
+                                    {supplier ? supplier.name : 'Loading...'}
+                                </h2>
+                                {supplier && (
+                                    <small className="text-muted font-weight-bold" style={{ fontSize: '11px', lineHeight: '1.5', whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                                        {supplier.phoneNumber} {supplier.address && `• ${supplier.address}`}
+                                    </small>
+                                )}
+                            </div>
                         </div>
-                    </div>
 
-                    <div className="nav-shortcuts d-flex flex-wrap" style={{ gap: '8px' }}>
-                        <button
-                            className={`nav-tab ${activeTab === 'pending' ? 'active' : ''}`}
-                            onClick={() => this.setState({ activeTab: 'pending' })}
-                        >
-                            <i className="fa fa-clock-o"></i> Current Orders
-                            <span style={{
-                                marginLeft: '8px',
-                                background: activeTab === 'pending' ? 'rgba(0,0,0,0.2)' : 'rgba(6, 182, 212, 0.1)',
-                                color: activeTab === 'pending' ? '#fff' : '#06b6d4',
-                                padding: '2px 8px',
-                                borderRadius: '12px',
-                                fontSize: '11px',
-                                fontWeight: 'bold'
-                            }}>{pendingShipments.length}</span>
-                        </button>
-                        <button
-                            className={`nav-tab ${activeTab === 'shipped' ? 'active' : ''}`}
-                            onClick={() => this.setState({ activeTab: 'shipped' })}
-                        >
-                            <i className="fa fa-ship"></i> On The Way
-                            <span style={{
-                                marginLeft: '8px',
-                                background: activeTab === 'shipped' ? 'rgba(0,0,0,0.2)' : 'rgba(6, 182, 212, 0.1)',
-                                color: activeTab === 'shipped' ? '#fff' : '#06b6d4',
-                                padding: '2px 8px',
-                                borderRadius: '12px',
-                                fontSize: '11px',
-                                fontWeight: 'bold'
-                            }}>{shippedShipments.length}</span>
-                        </button>
-                        <button
-                            className={`nav-tab ${activeTab === 'received' ? 'active' : ''}`}
-                            onClick={() => this.setState({ activeTab: 'received' })}
-                        >
-                            <i className="fa fa-check-circle"></i> Previous Orders
-                            <span style={{
-                                marginLeft: '8px',
-                                background: activeTab === 'received' ? 'rgba(0,0,0,0.2)' : 'rgba(6, 182, 212, 0.1)',
-                                color: activeTab === 'received' ? '#fff' : '#06b6d4',
-                                padding: '2px 8px',
-                                borderRadius: '12px',
-                                fontSize: '11px',
-                                fontWeight: 'bold'
-                            }}>{receivedShipments.length}</span>
-                        </button>
+                        <div className="nav-shortcuts d-flex" style={{ gap: '8px', flexShrink: 0, marginLeft: '16px', flexWrap: 'nowrap' }}>
+                            <button
+                                className={`nav-tab ${activeTab === 'pending' ? 'active' : ''}`}
+                                onClick={() => this.setState({ activeTab: 'pending' })}
+                                style={{ whiteSpace: 'nowrap' }}
+                            >
+                                <i className="fa fa-clock-o"></i> Current Orders
+                                <span style={{
+                                    marginLeft: '8px',
+                                    background: activeTab === 'pending' ? 'rgba(0,0,0,0.2)' : 'rgba(6, 182, 212, 0.1)',
+                                    color: activeTab === 'pending' ? '#fff' : '#06b6d4',
+                                    padding: '2px 8px',
+                                    borderRadius: '12px',
+                                    fontSize: '11px',
+                                    fontWeight: 'bold'
+                                }}>{pendingShipments.length}</span>
+                            </button>
+                            <button
+                                className={`nav-tab ${activeTab === 'shipped' ? 'active' : ''}`}
+                                onClick={() => this.setState({ activeTab: 'shipped' })}
+                                style={{ whiteSpace: 'nowrap' }}
+                            >
+                                <i className="fa fa-ship"></i> On The Way
+                                <span style={{
+                                    marginLeft: '8px',
+                                    background: activeTab === 'shipped' ? 'rgba(0,0,0,0.2)' : 'rgba(6, 182, 212, 0.1)',
+                                    color: activeTab === 'shipped' ? '#fff' : '#06b6d4',
+                                    padding: '2px 8px',
+                                    borderRadius: '12px',
+                                    fontSize: '11px',
+                                    fontWeight: 'bold'
+                                }}>{shippedShipments.length}</span>
+                            </button>
+                            <button
+                                className={`nav-tab ${activeTab === 'received' ? 'active' : ''}`}
+                                onClick={() => this.setState({ activeTab: 'received' })}
+                                style={{ whiteSpace: 'nowrap' }}
+                            >
+                                <i className="fa fa-check-circle"></i> Previous Orders
+                                <span style={{
+                                    marginLeft: '8px',
+                                    background: activeTab === 'received' ? 'rgba(0,0,0,0.2)' : 'rgba(6, 182, 212, 0.1)',
+                                    color: activeTab === 'received' ? '#fff' : '#06b6d4',
+                                    padding: '2px 8px',
+                                    borderRadius: '12px',
+                                    fontSize: '11px',
+                                    fontWeight: 'bold'
+                                }}>{receivedShipments.length}</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 

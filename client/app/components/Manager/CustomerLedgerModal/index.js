@@ -236,6 +236,9 @@ class CustomerLedgerModal extends Component {
                 invoiceNumber = entry.invoiceNumber;
             } else if (entry.type === 'payment') {
                 invoiceNumber = entry.notes ? `Payment (${entry.notes})` : 'Payment';
+                if (entry.createdBy) {
+                    invoiceNumber += ` (by ${entry.createdBy})`;
+                }
             }
 
             const bgColor = index % 2 === 1 ? '#f8fafc' : 'white';
@@ -547,7 +550,7 @@ class CustomerLedgerModal extends Component {
                             <tr key={idx} style={{ background: idx % 2 === 1 ? '#f8fafc' : 'white' }}>
                                 <td style={{ padding: '8px', border: '1px solid #e2e8f0' }}>{this.formatDateShort(entry.date)}</td>
                                 <td style={{ padding: '8px', border: '1px solid #e2e8f0', fontFamily: 'monospace' }}>
-                                    {entry.type === 'invoice' ? entry.invoiceNumber : (entry.notes || 'Payment')}
+                                    {entry.type === 'invoice' ? entry.invoiceNumber : ((entry.notes || 'Payment') + (entry.createdBy ? ` (by ${entry.createdBy})` : ''))}
                                 </td>
                                 <td style={{ padding: '8px', border: '1px solid #e2e8f0', textAlign: 'right' }}>{entry.debit ? entry.debit.toLocaleString() : '-'}</td>
                                 <td style={{ padding: '8px', border: '1px solid #e2e8f0', textAlign: 'right' }}>{entry.credit ? entry.credit.toLocaleString() : '-'}</td>
@@ -756,7 +759,14 @@ class CustomerLedgerModal extends Component {
                                                                 {entry.description}
                                                             </Link>
                                                         ) : (
-                                                            <span>{entry.description}</span>
+                                                            <span>
+                                                                {entry.description}
+                                                                {entry.createdBy && (
+                                                                    <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '6px' }}>
+                                                                        (by {entry.createdBy})
+                                                                    </span>
+                                                                )}
+                                                            </span>
                                                         )}
                                                         {entry.type === 'invoice' && (
                                                             <span style={{ color: '#94a3b8', fontSize: '12px' }}>

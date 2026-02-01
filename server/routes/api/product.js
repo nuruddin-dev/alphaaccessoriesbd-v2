@@ -58,14 +58,16 @@ router.get('/item/:slug', async (req, res) => {
 });
 
 // fetch storefront products api
-router.get('/storefront', cache('5 minutes'), async (req, res) => {
+router.get('/storefront', async (req, res) => {
   try {
     const popular = await Product.find({ isActive: true, popular: true })
       .limit(14)
       .sort('-created');
+
     const premium = await Product.find({ isActive: true, premium: true })
       .limit(14)
       .sort('-created');
+
     const newArrivals = await Product.find({ isActive: true })
       .sort('-created')
       .limit(14);
@@ -142,7 +144,15 @@ router.get('/list', async (req, res) => {
       page = 1,
       limit = 20
     } = req.query;
-    sortOrder = JSON.parse(sortOrder);
+    if (typeof sortOrder === 'string') {
+      try {
+        sortOrder = JSON.parse(sortOrder);
+      } catch (err) {
+        sortOrder = { _id: -1 };
+      }
+    } else if (typeof sortOrder !== 'object') {
+      sortOrder = { _id: -1 };
+    }
 
     const categoryFilter = category ? { category } : {};
     const basicQuery = getStoreProductsQuery(min, max, rating);

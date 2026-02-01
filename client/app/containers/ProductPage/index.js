@@ -827,7 +827,7 @@ class ProductPage extends React.PureComponent {
                   <Col md='12' lg='12' className='bg-light rounded p-4'>
                     <div className='d-flex mb-4'>
                       <ProductPriceDiv product={product} />
-                      {product.previousPrice && (
+                      {product.previousPrice > 0 && (
                         <p className='save-price'>
                           বাঁচলো{' '}
                           {convertToBengaliDigits(
@@ -1061,7 +1061,7 @@ const ProductPriceDiv = ({ product }) => {
   return (
     <div className='d-inline-flex align-items-center'>
       <p className='price'>৳{convertToBengaliDigits(product.price)}</p>
-      {product.previousPrice && (
+      {product.previousPrice > 0 && (
         <p className='previous-price'>
           ৳{convertToBengaliDigits(product.previousPrice)}
         </p>

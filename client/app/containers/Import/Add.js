@@ -378,6 +378,7 @@ class ImportAdd extends React.Component {
                                                 <option value="total">Total Tax (Global)</option>
                                                 <option value="per_ctn">Tax Per Ctn</option>
                                                 <option value="per_item">Tax Per Item</option>
+                                                <option value="per_kg">Tax Per Kg</option>
                                             </Input>
                                         </FormGroup>
                                     </Col>

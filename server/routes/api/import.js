@@ -93,6 +93,14 @@ router.post('/add', auth, role.check(ROLES.Admin), async (req, res) => {
     try {
         const { supplier, orderDate, notes, items, costs } = req.body;
 
+        // Calculate BDT prices for items
+        if (items && items.length > 0) {
+            items.forEach(item => {
+                item.priceBDT = calculateItemBuyingPrice(item, costs);
+                item.totalAmountBDT = (item.totalQuantity || 0) * item.priceBDT;
+            });
+        }
+
         const importOrder = new ImportOrder({
             orderNumber: `IMP-${Date.now()}`,
             supplier,
@@ -120,6 +128,15 @@ router.post('/add', auth, role.check(ROLES.Admin), async (req, res) => {
 router.put('/:id', auth, role.check(ROLES.Admin), async (req, res) => {
     try {
         const update = req.body;
+
+        // Calculate BDT prices for items if items or costs are present
+        if (update.items && update.items.length > 0 && update.costs) {
+            update.items.forEach(item => {
+                item.priceBDT = calculateItemBuyingPrice(item, update.costs);
+                item.totalAmountBDT = (item.totalQuantity || 0) * item.priceBDT;
+            });
+        }
+
         const query = { _id: req.params.id };
 
         const importOrder = await ImportOrder.findOneAndUpdate(query, update, {
@@ -515,6 +532,12 @@ router.post('/:id/shipment/:shipmentId/item/:itemId/undo-shipped', auth, role.ch
 
         // Remove from shipped shipment
         sourceShipment.items.pull(req.params.itemId);
+
+        // If source shipment is now empty, remove it entirely
+        if (sourceShipment.items.length === 0) {
+            order.shipments.pull(sourceShipment._id);
+        }
+
         await order.save();
 
         res.status(200).json({
