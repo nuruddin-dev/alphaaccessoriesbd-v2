@@ -11,7 +11,11 @@ import {
     Input,
     FormGroup,
     Label,
-    ModalFooter
+    ModalFooter,
+    Modal,
+    ModalHeader,
+    ModalBody,
+    Badge
 } from 'reactstrap';
 import { success, error, warning } from 'react-notification-system-redux';
 import dayjs from 'dayjs';
@@ -181,7 +185,7 @@ class Challan extends React.PureComponent {
 
             const response = await axios.post(`${API_URL}/challan/create`, payload);
             if (response.data.success) {
-                this.props.success({ title: 'Landing saved successfully.', position: 'tr', autoDismiss: 3 });
+                this.props.success({ title: 'Lending saved successfully.', position: 'tr', autoDismiss: 3 });
                 this.toggleAddMode();
                 this.fetchChallans();
             }
@@ -288,7 +292,7 @@ class Challan extends React.PureComponent {
                                         fontSize: '20px',
                                         letterSpacing: '-0.5px'
                                     }}>
-                                        Landings
+                                        Lendings
                                     </h2>
                                     <span className="text-muted small ml-3 d-none d-md-block" style={{ borderLeft: '1px solid #e2e8f0', paddingLeft: '15px' }}>
                                         Track products given as samples or debt
@@ -298,7 +302,7 @@ class Challan extends React.PureComponent {
                                     className="btn-neon btn-neon--cyan"
                                     onClick={this.toggleAddMode}
                                 >
-                                    <i className="fa fa-plus-circle"></i> New Landing
+                                    <i className="fa fa-plus-circle"></i> New Lending
                                 </button>
                             </div>
 
@@ -306,7 +310,7 @@ class Challan extends React.PureComponent {
                                 <Table responsive hover className="mb-0">
                                     <thead className="bg-light">
                                         <tr>
-                                            <th>Landing #</th>
+                                            <th>Lending #</th>
                                             <th>Customer</th>
                                             <th>Date</th>
                                             <th>Items</th>
@@ -389,7 +393,7 @@ class Challan extends React.PureComponent {
                                         </Col>
                                         <Col md={4}>
                                             <FormGroup>
-                                                <Label>Landing #</Label>
+                                                <Label>Lending #</Label>
                                                 <Input value={this.state.challanNumber} disabled />
                                             </FormGroup>
                                         </Col>
@@ -478,7 +482,7 @@ class Challan extends React.PureComponent {
                                     <div className="mt-4 d-flex justify-content-end gap-2">
                                         <Button color="light" onClick={this.toggleAddMode}>Cancel</Button>
                                         <Button color="success" onClick={this.saveChallan}>
-                                            <i className="fa fa-save mr-2"></i> Save Landing (Deduct Stock)
+                                            <i className="fa fa-save mr-2"></i> Save Lending (Deduct Stock)
                                         </Button>
                                     </div>
                                 </CardBody>
@@ -488,7 +492,7 @@ class Challan extends React.PureComponent {
 
                     {/* Settlement Modal */}
                     <Modal isOpen={this.state.isSettleModalOpen} toggle={() => this.setState({ isSettleModalOpen: false })} size="lg">
-                        <ModalHeader>Settle Landings for {this.state.activeChallan?.challanNumber}</ModalHeader>
+                        <ModalHeader>Settle Lendings for {this.state.activeChallan?.challanNumber}</ModalHeader>
                         <ModalBody>
                             <Table responsive>
                                 <thead>

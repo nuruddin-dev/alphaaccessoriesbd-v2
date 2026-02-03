@@ -2869,10 +2869,19 @@ class Invoice extends React.PureComponent {
                       <td
                         style={{
                           ...productNameCellStyle,
+                          fontWeight: 'bold',
+                          textAlign: 'left'
+                        }}
+                      >
+                        Total quantity: {invoiceItems.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0)}
+                      </td>
+                      <td style={smallCellStyle}></td>
+                      <td
+                        style={{
+                          ...smallCellStyle,
                           textAlign: 'right',
                           fontWeight: 'bold'
                         }}
-                        colSpan='3'
                       >
                         Total
                       </td>

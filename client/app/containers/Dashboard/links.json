@@ -44,7 +44,7 @@
     },
     {
       "to": "/lendings",
-      "name": "Landings",
+      "name": "Lendings",
       "prefix": "/dashboard",
       "icon": "fa-paper-plane"
     },
