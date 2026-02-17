@@ -74,7 +74,10 @@ const config = {
     compress: true,
     hot: true,
     disableHostCheck: true,
-    historyApiFallback: true
+    historyApiFallback: true,
+    proxy: {
+      '/api': 'http://localhost:3000'
+    }
   },
   devtool: 'eval-source-map'
 };

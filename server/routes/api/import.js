@@ -303,19 +303,19 @@ router.delete('/:id/shipment/:shipmentId/item/:itemId', auth, role.check(ROLES.A
 // @access  Private
 router.post('/:id/shipment/:shipmentId/item/:itemId/move-to-shipped', auth, role.check(ROLES.Admin), async (req, res) => {
     try {
-        const order = await ImportOrder.findById(req.params.id);
+        const sourceOrder = await ImportOrder.findById(req.params.id);
 
-        if (!order) {
-            return res.status(404).json({ error: 'Order not found.' });
+        if (!sourceOrder) {
+            return res.status(404).json({ error: 'Source Order not found.' });
         }
 
-        // Find shipment by _id or shipmentId string
+        // Find source shipment
         let sourceShipment;
         if (Mongoose.Types.ObjectId.isValid(req.params.shipmentId)) {
-            sourceShipment = order.shipments.id(req.params.shipmentId);
+            sourceShipment = sourceOrder.shipments.id(req.params.shipmentId);
         }
         if (!sourceShipment) {
-            sourceShipment = order.shipments.find(s => s.shipmentId === req.params.shipmentId);
+            sourceShipment = sourceOrder.shipments.find(s => s.shipmentId === req.params.shipmentId);
         }
 
         if (!sourceShipment) {
@@ -332,7 +332,7 @@ router.post('/:id/shipment/:shipmentId/item/:itemId/move-to-shipped', auth, role
             return res.status(404).json({ error: 'Item not found.' });
         }
 
-        // Copy item data before removing
+        // Copy item data
         const itemData = {
             product: itemToMove.product,
             modelName: itemToMove.modelName,
@@ -347,20 +347,46 @@ router.post('/:id/shipment/:shipmentId/item/:itemId/move-to-shipped', auth, role
             totalPriceBDT: itemToMove.totalPriceBDT
         };
 
-        // Find or create a target "Shipped" shipment
         const { targetShipmentId } = req.body;
+        let targetOrder = sourceOrder; // Default to same order
         let targetShipment;
+        let isCrossOrder = false;
 
         if (targetShipmentId && targetShipmentId !== 'new') {
-            // Find specific shipment by _id or shipmentId
+            // 1. Try to find in Source Order
             if (Mongoose.Types.ObjectId.isValid(targetShipmentId)) {
-                targetShipment = order.shipments.id(targetShipmentId);
+                targetShipment = sourceOrder.shipments.id(targetShipmentId);
             }
             if (!targetShipment) {
-                targetShipment = order.shipments.find(s => s.shipmentId === targetShipmentId);
+                targetShipment = sourceOrder.shipments.find(s => s.shipmentId === targetShipmentId);
             }
 
-            // Validate the target shipment
+            // 2. If not in Source Order, look in other orders
+            if (!targetShipment) {
+                // Find the order that contains this shipment
+                const otherOrder = await ImportOrder.findOne({
+                    'shipments.shipmentId': targetShipmentId
+                });
+
+                if (otherOrder) {
+                    targetOrder = otherOrder;
+                    targetShipment = otherOrder.shipments.find(s => s.shipmentId === targetShipmentId);
+                    isCrossOrder = true;
+                } else {
+                    // Start looking by _id if checking by shipmentId string failed (though usually they are same vars in finding logic)
+                    if (Mongoose.Types.ObjectId.isValid(targetShipmentId)) {
+                        const otherOrderById = await ImportOrder.findOne({
+                            'shipments._id': targetShipmentId
+                        });
+                        if (otherOrderById) {
+                            targetOrder = otherOrderById;
+                            targetShipment = otherOrderById.shipments.id(targetShipmentId);
+                            isCrossOrder = true;
+                        }
+                    }
+                }
+            }
+
             if (targetShipment) {
                 if (targetShipment.status !== 'Shipped') {
                     return res.status(400).json({ error: 'Target shipment must be in Shipped status.' });
@@ -373,9 +399,9 @@ router.post('/:id/shipment/:shipmentId/item/:itemId/move-to-shipped', auth, role
                 return res.status(404).json({ error: 'Selected target shipment not found.' });
             }
         } else {
-            // Default logic: Find or create a "Shipped" shipment that's still editable (same date and NOT completed)
+            // Default: New/Auto logic WITHIN Source Order
             const today = new Date().toISOString().slice(0, 10);
-            targetShipment = order.shipments.find(s =>
+            targetShipment = sourceOrder.shipments.find(s =>
                 s.status === 'Shipped' &&
                 s.isCompleted !== true &&
                 s.shipmentDate &&
@@ -383,29 +409,31 @@ router.post('/:id/shipment/:shipmentId/item/:itemId/move-to-shipped', auth, role
             );
 
             if (!targetShipment || targetShipmentId === 'new') {
-                // Create new shipped shipment
                 const newShipmentId = generateShipmentId();
-                order.shipments.push({
+                sourceOrder.shipments.push({
                     shipmentId: newShipmentId,
                     shipmentDate: new Date(),
                     status: 'Shipped',
                     items: [itemData]
                 });
             } else {
-                // Add to existing shipped shipment found
                 targetShipment.items.push(itemData);
             }
         }
 
-        // Remove item from source shipment
+        // Remove from source
         sourceShipment.items.pull(req.params.itemId);
 
-        await order.save();
+        // Save
+        await sourceOrder.save();
+        if (isCrossOrder && targetOrder._id.toString() !== sourceOrder._id.toString()) {
+            await targetOrder.save();
+        }
 
         res.status(200).json({
             success: true,
             message: 'Item moved to shipped list!',
-            importOrder: order
+            importOrder: sourceOrder
         });
     } catch (error) {
         console.error('Error moving item:', error);

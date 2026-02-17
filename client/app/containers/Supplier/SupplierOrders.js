@@ -349,23 +349,63 @@ class SupplierOrders extends React.Component {
     // Move single item to shipped list
     handleMoveItemToShipped = (importId, shipmentId, itemId) => {
         const { imports } = this.state;
-        const currentOrder = imports.find(i => i._id === importId);
+        // Use loose equality to match ObjectId strings correctly
+        const currentOrder = imports.find(i => i._id == importId);
 
-        // Find open (not completed) shipped shipments for this supplier
-        const openShipped = currentOrder?.shipments?.filter(s =>
-            s.status === 'Shipped' && s.isCompleted !== true
-        ) || [];
+        console.log('DEBUG: handleMoveItemToShipped', { importId });
 
-        // If there are open shipped shipments, show selection modal
-        if (openShipped.length > 0) {
+        if (!currentOrder) {
+            console.error('Order not found for ID:', importId);
+            return;
+        }
+
+        // Find open (not completed) shipped shipments form ALL imports for this supplier
+        // This allows moving an item from a new Pending order to an existing Open Shipment in an old order
+        let openShipped = [];
+        imports.forEach(imp => {
+            if (imp.shipments) {
+                const candidates = imp.shipments.filter(s =>
+                    s.status === 'Shipped' && s.isCompleted !== true
+                );
+                openShipped.push(...candidates);
+            }
+        });
+
+        console.log('DEBUG: openShipped result', openShipped);
+
+        // Sort so the last created (newest) is first
+        openShipped.sort((a, b) => {
+            const dateA = new Date(a.shipmentDate || a.created || 0);
+            const dateB = new Date(b.shipmentDate || b.created || 0);
+            return dateB - dateA;
+        });
+
+        // Deduplicate just in case
+        openShipped = [...new Map(openShipped.map(s => [s.shipmentId || s._id, s])).values()];
+
+        // Logic: 
+        // 1. One open shipment -> Auto move to it
+        // 2. Multiple open -> Show modal to select
+        // 3. None open -> Auto create new
+        if (openShipped.length === 1) {
+            console.log('DEBUG: Auto-moving to single open shipment');
+            const target = openShipped[0];
+            const targetId = target.shipmentId || target._id;
+            this.confirmMoveToShipped(importId, shipmentId, itemId, targetId);
+        } else if (openShipped.length > 1) {
+            console.log('DEBUG: Opening modal for multiple shipments');
+            const target = openShipped[0];
+            const targetId = target.shipmentId || target._id;
+
             this.setState({
                 isSelectShipmentModalOpen: true,
                 openShipments: openShipped,
-                targetShipmentId: openShipped[0].shipmentId || openShipped[0]._id, // default to first open
+                targetShipmentId: targetId, // default to first/newest
                 selectedMoveParams: { importId, shipmentId, itemId }
             });
         } else {
-            // If no open shipment, proceed with 'new' or default auto-create logic
+            console.log('DEBUG: No open shipments, creating new');
+            // If no open shipment, proceed with 'new'
             this.confirmMoveToShipped(importId, shipmentId, itemId, 'new');
         }
     };

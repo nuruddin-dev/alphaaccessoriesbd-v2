@@ -39,7 +39,7 @@ app.use(routes);
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
-  const buildPath = path.join(__dirname, '../client/dist'); // Adjust the path to your React build folder
+  const buildPath = path.join(__dirname, 'dist'); // Adjust the path to your React build folder
   app.use(express.static(buildPath));
 
   // Serve index.html for all unmatched routes

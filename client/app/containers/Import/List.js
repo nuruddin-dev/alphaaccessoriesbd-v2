@@ -295,21 +295,44 @@ class ImportList extends React.Component {
 
     handleMoveItemToShipped = (importId, shipmentId, itemId) => {
         const { imports } = this.state;
-        const currentOrder = imports.find(i => i._id === importId);
+        // Use loose equality to matches ObjectId strings correctly
+        const currentOrder = imports.find(i => i._id == importId);
+
+        if (!currentOrder) {
+            console.error('Order not found for ID:', importId);
+            return;
+        }
 
         // Find open (not completed) shipped shipments for THIS supplier/order
-        const openShipped = currentOrder?.shipments?.filter(s =>
+        let openShipped = (currentOrder.shipments || []).filter(s =>
             s.status === 'Shipped' && s.isCompleted !== true
-        ) || [];
+        );
 
-        if (openShipped.length > 0) {
+        // Sort so the last created (newest) is first
+        openShipped.sort((a, b) => {
+            const dateA = new Date(a.shipmentDate || a.created || 0);
+            const dateB = new Date(b.shipmentDate || b.created || 0);
+            return dateB - dateA;
+        });
+
+        if (openShipped.length === 1) {
+            // Case 1: Exactly one open shipment -> Auto move to it
+            const target = openShipped[0];
+            const targetId = target.shipmentId || target._id;
+            this.confirmMoveToShipped(importId, shipmentId, itemId, targetId);
+        } else if (openShipped.length > 1) {
+            // Case 2: Multiple open shipments -> Show selection, default to newest
+            const target = openShipped[0];
+            const targetId = target.shipmentId || target._id;
+
             this.setState({
                 isSelectShipmentModalOpen: true,
                 openShipments: openShipped,
-                targetShipmentId: openShipped[0].shipmentId || openShipped[0]._id,
+                targetShipmentId: targetId,
                 selectedMoveParams: { importId, shipmentId, itemId }
             });
         } else {
+            // Case 3: No open shipments -> Auto create new
             this.confirmMoveToShipped(importId, shipmentId, itemId, 'new');
         }
     };
